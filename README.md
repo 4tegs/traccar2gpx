@@ -49,10 +49,16 @@ traccar2gpx is configured by a sidecar configuration file. Here is an example:
 ### More about the config file
 * The config file **must** be named: **traccar2gpx.json**
 * The file must be in valid json format.
+* There is an example of traccar2gpx.json on Github. 
+
 * The file **must** be in the same directory as **traccar2gpx.exe**
 * The file must include:
-    *  the **URL** to access the traccar server & the **port** to access it. Typically this is http://your_url:8082 . <br />**Remark:** http not https!  <br /> If you self-host your traccar server, make sure the have the right port forward setup in your router.
+    *  the **URL** to access the traccar server & the **port** to access it. Typically this is http://your_url:8082 . <br />**Remark:** http not https!  <br /> If you self-host your traccar server, make sure to have the right port forward setup in your router.
     *  your user-id and password that has the proper rights to access your traccar admin API.
+    * If you feel uncertain of how to write such a JSON file, start traccar2gpx.exe once. It will end with a failure message telling that a new configuration file has been created. 
+    **Now edit this file by updating with your credentials to access your traccar server!**
+
+* Viewing the config file after successfully running traccar2gpx you will find additional keys. They are updated automatically and you should not touch them.
     
 ## Use of traccar2gpx
 
@@ -71,7 +77,6 @@ traccar2gpx is configured by a sidecar configuration file. Here is an example:
 |Version |changes|
 --- | --- |
 |1.0 |Initial release|
-
-## Future ideas (no commitment!)
-
-* define a default preselect for tracker, color and Clean Track in the menue.
+|1.1 |Reworked configuration file with initial setup.|
+| | Menue selection of Tracker, Track Color and Clean Track are now saved in configuration as preselect.|
+| | Menue window location is now saved in configuration for next start.|
