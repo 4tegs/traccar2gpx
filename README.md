@@ -17,7 +17,8 @@ See the export options:
 Excel|x||x|
 KML||x||
 Json|||x|
-GPX||||x
+GPX|||x|x
+GPX Garmin Format||||x
 
 While Traccars export option is pretty good, I have different needs. Let's compare some options:
 
@@ -26,15 +27,17 @@ While Traccars export option is pretty good, I have different needs. Let's compa
 |Several selections of days, weeks, month, range  | x | - |
 |Selection of up to 90 days back from today  | - | x |
 |Track format |KML | GPX|
+|Garmin GPX format | - | x |
 |Track has a sounding name  | - | x |
 |One track for each day  | - | x |
 |Defined color of track  | - | x |
-|Track can be cleaned from trackpoints not in motion or in motion with <2,5km/h  | - | x |
+|Track can be cleaned from trackpoints with little motion  | - | x |
+|Track elevation can be smoothend  | - | x |
 |Track includes timestamp data of each tracks waypoint  | - | x |
 |Track can be used for geotagging  | - | x |
 
 ## Compatibility
-This version has been tested with Traccar 5.2
+This version has been tested with Traccar 5.4
 ## Configuration file
 
 traccar2gpx is configured by a sidecar configuration file. Here is an example:
@@ -70,7 +73,8 @@ traccar2gpx is configured by a sidecar configuration file. Here is an example:
 |Amount of days back:|Select between 1..90 days. Day 1 = today.  |
 |Tracker:|Select the tracker you want to pull the tracks from.  |
 |Color of the GPX Track:|Select the color the GPX tracks should get.  |
-|Clean track: |This is somehow tricky. It will delete all waypoints from the track that had no motion or motion is < 2,5km/H. It will delete the track if there are less then 10 trackpoints in total. Don't use this option if you use the track for e.g. Geotagging your pictures as no motion trackpoints can be of value.  |
+|Clean track: | This removes all trackpoints that have a speed of less than 0.5 km/h or a distance from point to point less than 1m. <br/>Don't use this option if you use the track for e.g. geotagging your pictures, as no motion trackpoints can be of value.  |
+|Smooth Elevation data:| Smoothens the elevation data. Running multiple times may be helpful (1..30). <br/>Test with your device. |
 |Result:|One GPX track per day selected. Each track has the days name as file- and trackname. If there is no file, there wasn't enough trackdata! |
 
 ## History
@@ -80,3 +84,5 @@ traccar2gpx is configured by a sidecar configuration file. Here is an example:
 |1.1 |Reworked configuration file with initial setup.|
 | | Menue selection of Tracker, Track Color and Clean Track are now saved in configuration as preselect.|
 | | Menue window location is now saved in configuration for next start.|
+|1.2 |Reworked most of the code. Pulling data from Traccar now in "Standard GPX Format" and reworking it for use with Garmin Software.|
+| | Added smoothening of elevation data.|
