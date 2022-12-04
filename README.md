@@ -26,13 +26,12 @@ While Traccars export option is pretty good, I have different needs. Let's compa
 --- | :---: | :---: |
 |Several selections of days, weeks, month, range  | x | - |
 |Selection of up to 90 days back from today  | - | x |
-|Track format |KML | GPX|
+|Track format |KML(GPX) | GPX|
 |Garmin GPX format | - | x |
 |Track has a sounding name  | - | x |
 |One track for each day  | - | x |
 |Defined color of track  | - | x |
 |Track can be cleaned from trackpoints with little motion  | - | x |
-|Track elevation can be smoothend  | - | x |
 |Track includes timestamp data of each tracks waypoint  | - | x |
 |Track can be used for geotagging  | - | x |
 
@@ -86,3 +85,6 @@ traccar2gpx is configured by a sidecar configuration file. Here is an example:
 | | Menue window location is now saved in configuration for next start.|
 |1.2 |Reworked most of the code. Pulling data from Traccar now in "Standard GPX Format" and reworking it for use with Garmin Software.|
 | | Added smoothening of elevation data.|
+|1.2.b | Removed smoothening of elevation data as algorythms used had no impact.|
+| | You can pull data now back to one year.|
+| | EXE file didn't work standalone. Should be fixed now.|

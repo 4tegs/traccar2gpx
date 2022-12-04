@@ -5,6 +5,13 @@
 # Fetches Tracks from Traccar 5.4 and builds a valid Garmin GPX track.
 # ..........................................................................................
 # More information: readme.md
+# 
+# Changes:
+#   2022 10 23      Took back "Smoothen the track" as the difference was close to null.
+#   2022 12 04      Upgraded to Python 3.10
+#                   Selection for 366 days instead of 90 only 
+#   
+# 
 # ##########################################################################################
 
 # ------------------------------------------------------------------------------------------
@@ -17,12 +24,13 @@ import requests
 from requests.auth import HTTPBasicAuth
 from datetime import datetime, timedelta
 
-from gpx_converter import Converter
-from multiprocessing.sharedctypes import Value
+# from gpx_converter import Converter
 
 from tkinter import *
 from tkinter import ttk
-from tkinter.messagebox import showinfo
+# from tkinter.messagebox import showinfo
+from ttkthemes import ThemedTk
+# from ttkthemes import *
 
 import gpxpy
 import gpxpy.gpx
@@ -60,12 +68,15 @@ def quit_my_program():
     If not: Create                                       
     '''
     widget_x, widget_y = mainframe.winfo_rootx(), mainframe.winfo_rooty()    
+    config_dic.update({"days_back" : (int(tage_choice.get())-1) })
+    config_dic.update({"winx" : widget_x}) 
     config_dic.update({"winx" : widget_x}) 
     config_dic.update({"winy" : widget_y}) 
     config_dic.update({"tracker_selected" : choice_tracker.current()}) 
     config_dic.update({"track_color" : color_choice.current()}) 
     config_dic.update({"cleaning_track" : clean_Track.get()}) 
-    config_dic.update({"smooth" : smooth_loops_w.current()}) 
+    config_dic.update({"statistics" : statistics.get()}) 
+    # config_dic.update({"smooth" : smooth_loops_w.current()}) 
 
     with open(my_config_file, "w") as data:
         json.dump(config_dic, data, indent=4)    
@@ -102,40 +113,29 @@ def error_message(error):
         ttk.Label(mainframe, text="YOU MUST UPDATE the created version with your credentials before you can carry on!").grid(column=1, row=3, sticky=W)
 
     if error == 2:
-        ttk.Label(mainframe, text="The JSON Inputfile is missing.").grid(
-            column=1, row=1, sticky=W)
-        ttk.Label(mainframe, text="Choose right filename").grid(
-            column=1, row=2, sticky=W)
-
-    if error == 3:
-        ttk.Label(mainframe, text="The JSON File has been converted").grid(
-            column=1, row=1, sticky=W)
-        ttk.Label(mainframe, text="Check your directory").grid(
-            column=1, row=2, sticky=W)
-    if error == 4:
         ttk.Label(mainframe, text="Missing the TRACAR JSON input File").grid(
             column=1, row=1, sticky=W)
         ttk.Label(mainframe, text="Check if connection to Traccar is working.").grid(
             column=1, row=2, sticky=W)
 
-    if error == 5:
+    if error == 3:
         ttk.Label(mainframe, text="The configuration file is wrong. Check:").grid(
             column=1, row=1, sticky=W)
         ttk.Label(mainframe, text=path + r"\traccar2gpx.json").grid(column=1, row=2, sticky=W)
 
-    if error == 6:
+    if error == 4:
         ttk.Label(mainframe, text="Can't query the devices from Traccar.").grid(
             column=1, row=1, sticky=W)
         ttk.Label(mainframe, text="Make sure you have admin rights and at least one tracker device active.").grid(
             column=1, row=2, sticky=W)
     
-    if error == 7:
+    if error == 5:
             ttk.Label(mainframe, text="There are no active Tracker available on Traccar.").grid(
                 column=1, row=1, sticky=W)
             ttk.Label(mainframe, text="Make sure you have admin rights and at least one tracker device active.").grid(
                 column=1, row=2, sticky=W)
 
-    if error == 8:
+    if error == 6:
             ttk.Label(mainframe, text="Routine has been called without GPX content!").grid(
                 column=1, row=1, sticky=W)
             ttk.Label(mainframe, text="This must not have happend. Call the programmer....").grid(
@@ -149,6 +149,88 @@ def error_message(error):
     root.bind("<Return>", "sys.exit('Tschüss!')")
     root.protocol("WM_DELETE_WINDOW", "sys.exit('Tschüss!')")
     root.mainloop()
+
+# ------------------------------------------------------------------------------------------
+# get some statistics around the track
+# 2022 10 21
+# ------------------------------------------------------------------------------------------
+def convert(seconds):
+    seconds = seconds % (24 * 3600)
+    hour = seconds // 3600
+    seconds %= 3600
+    minutes = seconds // 60
+    seconds %= 60
+
+def statistics_init():
+    '''Initialize a dictionary with the values for the statistics 
+    
+    Returns the dictionary.
+    '''   
+    statistic_dict = {
+        'Points in track' : ['Points in Track'.ljust(19)+": "], 
+        'Length 2D' : ['Length 2D'.ljust(19)+": "],
+        'Length 3D' : ['Length 3D'.ljust(19)+": "],
+        # "Unterwegs" : ['Duration'.ljust(19)+": "],
+        # "Moving time" : ['Moving time'.ljust(19)+": "],
+        # "Stopped time" : ['Stopped time'.ljust(19)+": "],
+        # "Moving distance" : ['Moving Distance'.ljust(19)+": "],
+        # "Stopped distance" : ['Stopped Distance'.ljust(19)+": "],
+        "Max speed" : ['Max Speed'.ljust(19)+": "],
+        "Elevation min" : ['Elevation min'.ljust(19)+": "],
+        "Elevation max" : ['Elevation max'.ljust(19)+": "],
+        "Uphill" : ['Uphill'.ljust(19)+": "],
+        "Downhill" : ['Downhill'.ljust(19)+": "]
+    }
+    return statistic_dict
+
+
+def gpx_statistics(gpx, statistic_dict): 
+    '''Fill statistics dictionary. Append an entry to each list item.
+    
+    Returns the dictionary.
+    '''
+    if len(gpx.tracks) > 0:
+        for track in gpx.tracks:
+            for segment in track.segments:
+                uphill, downhill = segment.get_uphill_downhill()
+                unterwegs = gpx.get_duration() # floating 
+                hoch_min, hoch_max = gpx.get_elevation_extremes()
+                moving_time, stopped_time, moving_distance, stopped_distance, max_speed = gpx.get_moving_data()
+                cc = statistic_dict["Points in track"]  ; cd = str(segment.get_points_no()).rjust(12)               ; cc.append(cd) ; statistic_dict['Points in track'] = cc
+                cc = statistic_dict["Length 2D"]        ; cd = str(int(segment.length_2d())).rjust(10) + ' m'       ; cc.append(cd) ; statistic_dict['Length 2D'] = cc
+                cc = statistic_dict["Length 3D"]        ; cd = str(int(segment.length_3d())).rjust(10) + ' m'       ; cc.append(cd) ; statistic_dict['Length 3D'] = cc
+                # cc = statistic_dict["Unterwegs"]        ; cd = str(convert(unterwegs)).rjust(12)                     ; cc.append(cd) ; statistic_dict['Unterwegs'] = cc
+                # cc = statistic_dict["Moving time"]      ; cd = str(convert(moving_time)).rjust(12)                   ; cc.append(cd) ; statistic_dict['Moving time'] = cc
+                # cc = statistic_dict["Stopped time"]     ; cd = str(convert(stopped_time)).rjust(12)                  ; cc.append(cd) ; statistic_dict['Stopped time'] = cc
+                # cc = statistic_dict["Moving distance"]  ; cd = str(round(moving_distance/1000 ,2)).rjust(9)+' Km'   ; cc.append(cd) ; statistic_dict['Moving distance'] = cc
+                # cc = statistic_dict["Stopped distance"] ; cd = str(round(stopped_distance/1000 ,2)).rjust(9)+' Km'  ; cc.append(cd) ; statistic_dict['Stopped distance'] = cc
+                cc = statistic_dict["Max speed"]        ; cd = str(round((max_speed/1000*3600),2)).rjust(8)+' Km/h' ; cc.append(cd) ; statistic_dict['Max speed'] = cc
+                cc = statistic_dict["Elevation min"]    ; cd = str(int(hoch_min)).rjust(10) + ' m'                   ; cc.append(cd) ; statistic_dict['Elevation min'] = cc
+                cc = statistic_dict["Elevation max"]    ; cd = str(int(hoch_max)).rjust(10) + ' m'                   ; cc.append(cd) ; statistic_dict['Elevation max'] = cc
+                cc = statistic_dict["Uphill"]           ; cd = str(int(uphill)).rjust(10) + ' m'                     ; cc.append(cd) ; statistic_dict['Uphill'] = cc
+                cc = statistic_dict["Downhill"]         ; cd = str(int(downhill)).rjust(10) + ' m'                   ; cc.append(cd) ; statistic_dict['Downhill'] = cc
+    return statistic_dict
+
+def gpx_statistics_print(statistic_dict, lines):
+    '''
+    Loops through dictionary and prepares readable statistics, line by line, for later write to file
+    
+    * Input: dictionary, lines (list of lines)
+    * Return: lines
+
+    '''
+    line = "-".ljust(21) +  'Raw GPX'.rjust(12) +  'Reworked'.rjust(12) +'\n'
+    lines.append(line)
+
+    for x in statistic_dict:
+        line = ''
+        for y in statistic_dict[x]: 
+            line = line + y
+        line = line + "\n"
+        lines.append(line)
+    
+    return lines
+
 
 # ------------------------------------------------------------------------------------------
 # Convert seconds to a timezone.
@@ -203,10 +285,7 @@ def load_json(my_config_file):
         with open(my_config_file) as f:												#
             return json.load(f)															#
     except FileNotFoundError:
-        error_message(4)
-
-
-
+        error_message(2)
 
 # ...........................................................................
 # Rufe alle Devices ab
@@ -233,7 +312,7 @@ def get_all_devices(traccar_result):
     r = requests.get(url,  params=payload, auth=a, headers=headers)
     # ...........................................................................
     if r.status_code != 200:
-        error_message(6)
+        error_message(4)
     else:
         with open(traccar_result, 'wb') as f:												# Schreibe eine binäre Datei
             f.write(r.content)
@@ -251,7 +330,7 @@ def get_all_devices(traccar_result):
 # ...................................................
 def gpx_clean_track(gpx):   
     '''
-    Reduces the number of points in the track segment & smoothens the elevation graph.
+    Reduces the number of points in the track segment.
 
     ### Args: 
     - Input gpx(parsed)
@@ -260,17 +339,30 @@ def gpx_clean_track(gpx):
 
     ### Methods:
         - reduces by minimum distance = 1m
-        - reduces by minimum speed of > 0.5
+        - reduces by minimum speed of < 0.5
+        - reduces by max speed of > 250km/h
+        - reduces if similar latitude and longitude as next point in track
     '''
     if len(gpx.tracks) > 0:
-        for track in gpx.tracks:
-            
+        for track in gpx.tracks:           
             for segment in track.segments:
                 i = 0
-                while i < (segment.get_points_no() -1):         # remove track points with speed < 0.5
-                    speed = segment.get_speed(i)
-                    if speed < 0.5 :
+                kill = False
+                while i < (segment.get_points_no() -2):         # remove track points with speed < 0.5
+                    # print(segment)
+                    lat1 = segment.points[i].latitude
+                    lon1 = segment.points[i].longitude
+                    lat2 = segment.points[i+1].latitude
+                    lon2 = segment.points[i+1].longitude
+                    if (lat1 == lat2) & (lon1 == lon2): kill = True
+                    speed = segment.get_speed(i)    
+                    if speed == None: 
+                        kill = True
+                        speed = 0
+                    if (speed < 0.5) | (speed > 250) : kill = True
+                    if kill == True: 
                         segment.remove_point(i) 
+                        kill = False
                     else:
                         i = i+1
                 segment.reduce_points(1)                        # reduce by minimum distance of 1 Meter
@@ -279,27 +371,28 @@ def gpx_clean_track(gpx):
 # ...................................................
 # Smooth the Track
 # 2022 10 20
+# 2022 10 23 - In fact hasn't made a difference. So I remove it!
 # ...................................................
-def gpx_smooth_track(gpx, smoothen:int):   
-    '''
-    Smoothens the elevation graph.
+# def gpx_smooth_track(gpx, smoothen:int):   
+#     '''
+#     Smoothens the elevation graph.
 
-    ### Args: 
-    - Input gpx(parsed), int: smoothen runs
+#     ### Args: 
+#     - Input gpx(parsed), int: smoothen runs
 
-    - Returns: gpx(reworked parsed) - now with more realistic elevation data
+#     - Returns: gpx(reworked parsed) - now with more realistic elevation data
 
-    ### Methods:
-        - "Smooths" the elevation graph. Runs multiple times, based on users decision.
-    '''
-    if len(gpx.tracks) > 0:
-        for track in gpx.tracks:  
-            for segment in track.segments:
-                # Smoothen the track eleveation information. Should change between the trackers used!
-                for  i in range(smoothen): segment.smooth(vertical=True, horizontal=False, remove_extremes = False )
-        return gpx
-    else:
-        error_message(8)
+#     ### Methods:
+#         - "Smooths" the elevation graph. Runs multiple times, based on users decision.
+#     '''
+#     if len(gpx.tracks) > 0:
+#         for track in gpx.tracks:  
+#             for segment in track.segments:
+#                 # Smoothen the track eleveation information. Should change between the trackers used!
+#                 for  i in range(smoothen): segment.smooth(vertical=True, horizontal=False, remove_extremes = False )
+#         return gpx
+#     else:
+#         error_message(6)
 
 # ...................................................
 # Attach a name to the track
@@ -460,6 +553,10 @@ if __name__ == "__main__":
 
     def get_from_traccar():
         '''Get Tracks from Traccar'''
+        style = ttk.Style()
+        style.configure("Red.TLabel", foreground="red")
+        ttk.Label(mainframe, text="Running!", style="Red.TLabel").grid(column=1, row=7, sticky="W")
+        root.update()
         daysback = int(tage_choice.get())
         tracker_name = str(choice_tracker.get())
         tracker_id = my_tracker_id[my_tracker_names.index(choice_tracker.get())]
@@ -477,8 +574,8 @@ if __name__ == "__main__":
             local_tz_offset= local_tz_offset+3600
         if local_tz_offset != 0:
             TZ_Offset = convert_sec_2_TZ(local_tz_offset) 
-
         for i in range(daysback):														# eine for 0 to Anzahl Tage daysback loop
+            lines = []
             from1 = i*-1
             to1 = i*-1																	# Ebenfalls eine MinusZahl
             from_time = datetime.now() + timedelta(days=from1)
@@ -499,29 +596,41 @@ if __name__ == "__main__":
             # ...........................................
             gpx_file = open(gpx_file_name, 'r')     # Lese die GPX File ein als das was sie ist: Text
             gpx = gpxpy.parse(gpx_file)             # Jetzt mache ein GPX/XML aus dem Text
-
             if gpx.get_track_points_no() > 0:
+                # lines = gpx_statistics(gpx, lines)
+                statistic_dict = statistics_init()
+                statistic_dict = gpx_statistics(gpx, statistic_dict)
+                
                 if track_cleaning: gpx = gpx_clean_track(gpx)
-                if smooth_loops > 0: gpx = gpx_smooth_track(gpx, smooth_loops)
+                # if smooth_loops > 0: gpx = gpx_smooth_track(gpx, smooth_loops)
                 gpx, new_gpx_fileName = gpx_set_new_trackname(gpx)
                 gpx = gpx_set_new_header(gpx)
                 gpx = gpx_set_correct_timeformat(gpx)
-                gpx = gpx_set_color(gpx, trackcolor)  
+                gpx = gpx_set_color(gpx, trackcolor) 
+
+                # lines = gpx_statistics(gpx, lines) 
+                statistic_dict = gpx_statistics(gpx, statistic_dict)
+                lines = gpx_statistics_print(statistic_dict, lines)
                 # ...........................................
                 # Finally write GPX to disc
                 # ...........................................
-                new_gpx_fileName = new_gpx_fileName + ".gpx"
-                with open(new_gpx_fileName, 'w') as f:     
+                new_gpx_fileName1 = new_gpx_fileName + ".gpx"
+                with open(new_gpx_fileName1, 'w') as f:     
                     f.write(gpx.to_xml())  
-
+                f.close()
+        
+                if statistics.get():
+                    new_gpx_fileName1 = new_gpx_fileName + ".txt"
+                    with open(new_gpx_fileName1, 'w') as f:
+                        f.writelines(lines)
+                    f.close()
+                
             gpx_file.close()     # Lese die GPX File ein als das was sie ist: Text
             delete_file(gpx_file_name)
             
-
-            
             style = ttk.Style()
             style.configure("Green.TLabel", foreground="green")
-            ttk.Label(mainframe, text="Done!", style="Green.TLabel").grid(column=1, row=6, sticky="W")
+            ttk.Label(mainframe, text="Done!    ", style="Green.TLabel").grid(column=1, row=7, sticky="W")
     
     # ....................................................
     # Setzte deine Variablen
@@ -537,7 +646,12 @@ if __name__ == "__main__":
 
     # check if config file has been edited with sense
     if config_dic['email'] == "your email" or config_dic['root_url'] == "http://your-url.de:8082" or config_dic['password'] == "your password":
-        error_message(5)
+        error_message(3)
+    # ................
+    # Check days back
+    x = config_dic.get("days_back")
+    if not x: config_dic.update({"days_back" : 0})                                   # Init die Variable in der Config File
+    daysback = config_dic.get("days_back")
     # ................
     # Check if window x position key exists in Config JSON    
     # If not: Create                                      
@@ -563,20 +677,38 @@ if __name__ == "__main__":
     # ................
     # Check for last Status of Cleaning Track
     x = config_dic.get("cleaning_track")
-    if not x: config_dic.update({"cleaning_track" : False})                                   # Init die Variable in der Config File
+    if not x: config_dic.update({"cleaning_track" : False})                       # Init die Variable in der Config File
+    # ................
+    # Check for last Status of Statistics waned
+    x = config_dic.get("statistics")
+    if not x: config_dic.update({"statistics" : False})                                   # Init die Variable in der Config File
     # ................
     # Check for last Status of Smoothening Elevation data
-    x = config_dic.get("smooth")
-    if not x: config_dic.update({"smooth" : 0})                                   # Init die Variable in der Config File
-    smooth_loops = config_dic.get("smooth")
+    # x = config_dic.get("smooth")
+    # if not x: config_dic.update({"smooth" : 0})                                   # Init die Variable in der Config File
+    # smooth_loops = config_dic.get("smooth")
+
 
     # ....................................................
     # Baue das Menü auf
     # ....................................................
-    root = Tk()
+    # root = Tk()
+    root = ThemedTk(theme='radiance')
+    # root = ThemedTk(theme='clearlooks')
+    # root = ThemedTk(theme='adapta')
+    # root = ThemedTk(theme='aquativo')
+    # root = ThemedTk(theme='arc')
+    # root = ThemedTk(theme='black')
+    # root = ThemedTk(theme='blue')
+    # root = ThemedTk(theme='elegance')
+    # root = ThemedTk(theme='kroc')
+    # root = ThemedTk(theme='plastik')
+    # root = ThemedTk(theme='winxpblue')
+    # root = ThemedTk(theme='smog')
+    # root = ThemedTk(theme='yaru')
     '''Setting the x and y position from where the menue should pop up'''
     root.geometry('+{}+{}'.format(winx,winy))  
-    root.title("Traccar2GPX - v1.2 (use with Traccar 5.4)")
+    root.title("Traccar2GPX - v1.2b (tested with Traccar 5.4)")
     mainframe = ttk.Frame(root, borderwidth=5, relief="ridge", padding="5 5 5 5")
     mainframe.grid(column=0, row=0, sticky=(N, W, E, S))
     root.columnconfigure(0, weight=1)
@@ -598,21 +730,22 @@ if __name__ == "__main__":
         my_tracker_id.append(i['id'])
     my_tracker_amount = len(my_tracker_names)
     if my_tracker_amount == 0:
-        error_message(7)
+        error_message(5)
 
     # ....................................................
     # Setzte das Auswahlmenü für die Anzahl der Tage zurück
     # ....................................................
     TageZurueck = []
-    for x in range(1, 91):
+    for x in range(1, 366):
         TageZurueck.append(x)
-    ttk.Label(mainframe, text="Amount of days back:").grid(
-        column=1, row=1, sticky=E)
+    ttk.Label(mainframe, text="Amount of days back:").grid(column=1, row=1, sticky=E)
     tage_choice = ttk.Combobox(mainframe)
     tage_choice['values'] = TageZurueck
-    tage_choice.current(0)
-    tage_choice.grid(column=2, row=1, sticky="W")
+    # tage_choice.current(0)
+    tage_choice.current(config_dic.get("days_back"))
+    tage_choice.grid(column=2, columnspan=3, row=1, sticky="W")
     tage_choice.state(['readonly'])
+    tage_choice.focus()
 
     # ....................................................
     # Setzte das Auswahlmenü für den Tracker
@@ -621,7 +754,7 @@ if __name__ == "__main__":
     choice_tracker = ttk.Combobox(mainframe)
     choice_tracker['values'] = my_tracker_names
     choice_tracker.current(tracker_selected)                    # tracker_selected Wurde weiter oben in der Initialisierungsektion der Config Presets gesetzt
-    choice_tracker.grid(column=2, row=2, sticky=EW)
+    choice_tracker.grid(column=2,columnspan=3,  row=2, sticky=W)
     choice_tracker.state(["readonly"])
 
     # ....................................................
@@ -634,7 +767,7 @@ if __name__ == "__main__":
         'Red',
         'Blue',
         'Yellow',
-        'LightGrey',
+        'LightGray',
         'DarkMagenta',
         'DarkCyan',
         'DarkGreen',
@@ -649,40 +782,50 @@ if __name__ == "__main__":
     color_choice = ttk.Combobox(mainframe)
     color_choice['values'] = TrackColor
     color_choice.current(track_color_set)                   # track_color Wurde weiter oben in der Initialisierungsektion der Config Presets gesetzt
-    color_choice.grid(column=2, row=3, sticky="W")
+    color_choice.grid(column=2,columnspan=3,  row=3, sticky="W")
     color_choice.state(['readonly'])
-
-    # ....................................................
-    # Setzte das Auswahlmenü für Cleaning Track
-    # ....................................................
-    ttk.Label(mainframe, text="Clean Track:").grid(column=1, row=4, sticky=E)
-    clean_Track = BooleanVar(value=True)                                    # Zwingend die init einer TkInter BooleanVar machen!
-    clean_Track.set(config_dic.get("cleaning_track"))                       # Die BoolenVar wird mit set und get behandelt.
-    check_clean_Track = ttk.Checkbutton(mainframe,  variable=clean_Track)
-    check_clean_Track.grid(column=2, row=4, sticky="W")
 
     # ....................................................
     # Setzte das Auswahlmenü für Smoothening der Elevation
     # ....................................................
-    smoothRange = []
-    for x in range(0, 31): smoothRange.append(x)
-    ttk.Label(mainframe, text="Smooth Elevation data:").grid(column=1, row=5, sticky=E)
-    smooth_loops_w = ttk.Combobox(mainframe)
-    smooth_loops_w['values'] = smoothRange
-    smooth_loops_w.current(smooth_loops)
-    smooth_loops_w.grid(column=2, row=5, sticky="W")
-    smooth_loops_w.state(['readonly'])
-    # smooth_loops.state(['disabled'])
+    # smoothRange = []
+    # for x in range(0, 31): smoothRange.append(x)
+    # ttk.Label(mainframe, text="Smooth Elevation data:").grid(column=1, row=4, sticky=E)
+    # smooth_loops_w = ttk.Combobox(mainframe)
+    # smooth_loops_w['values'] = smoothRange
+    # smooth_loops_w.current(smooth_loops)
+    # smooth_loops_w.grid(column=2, columnspan=3, row=4, sticky="W")
+    # smooth_loops_w.state(['readonly'])
+    # # smooth_loops.state(['disabled'])
+
+
+    # ....................................................
+    # Setzte das Auswahlmenü für Cleaning Track
+    # ....................................................
+    ttk.Label(mainframe, text="Clean Track:").grid(column=1, row=5, sticky=E)
+    clean_Track = BooleanVar(value=True)                                    # Zwingend die init einer TkInter BooleanVar machen!
+    clean_Track.set(config_dic.get("cleaning_track"))                       # Die BoolenVar wird mit set und get behandelt.
+    check_clean_Track = ttk.Checkbutton(mainframe,  variable=clean_Track)
+    check_clean_Track.grid(column=2, row=5, sticky="W")
+
+    # ....................................................
+    # Setzte das Auswahlmenü für Statistics y/n
+    # ....................................................
+    ttk.Label(mainframe, text="Statistics").grid(column=1, row=6, sticky=E)
+    statistics = BooleanVar(value=True)                                    # Zwingend die init einer TkInter BooleanVar machen!
+    statistics.set(config_dic.get("statistics"))                           # Die BoolenVar wird mit set und get behandelt.
+    check_statistics = ttk.Checkbutton(mainframe,  variable=statistics)
+    check_statistics.grid(column=2, row=6, sticky="W")
 
     # ....................................................
     # Setze die "Arbeitsknöpfe"
     # ....................................................
     work_button = ttk.Button(mainframe, text='Get GPX Track', command=get_from_traccar)
-    work_button.grid(column=2, row=6, sticky="EW")
-    work_button.focus()
+    work_button.grid(column=2,  row=7, sticky="EW")
+    # work_button.focus()
 
     quitbutton = ttk.Button(mainframe, text='Exit', command=quit_my_program)
-    quitbutton.grid(column=3, row=6, sticky="E")
+    quitbutton.grid(column=3, row=7, sticky="EW")
 
     for child in mainframe.winfo_children():
         child.grid_configure(padx=5, pady=5) 
