@@ -10,7 +10,9 @@
 #   2022 10 23      Took back "Smoothen the track" as the difference was close to null.
 #   2022 12 04      Upgraded to Python 3.10
 #                   Selection for 366 days instead of 90 only 
-#   
+#   2023 03 27      Upgraded to Python 3.11
+#                   Updated to Selection of Dates instead of days backward.
+#                   Added option to pull either a single track or one track per day of selected range.
 # 
 # ##########################################################################################
 
@@ -24,13 +26,22 @@ import requests
 from requests.auth import HTTPBasicAuth
 from datetime import datetime, timedelta
 
+from babel import Locale
+from babel import numbers
+
 # from gpx_converter import Converter
 
+import tkinter as tk
 from tkinter import *
 from tkinter import ttk
 # from tkinter.messagebox import showinfo
 from ttkthemes import ThemedTk
 # from ttkthemes import *
+
+import tkinter.messagebox as msgbox
+from datetime import datetime, timedelta
+from tkcalendar import Calendar
+
 
 import gpxpy
 import gpxpy.gpx
@@ -67,8 +78,10 @@ def quit_my_program():
     Check if menue preselcts exists in Config JSON       
     If not: Create                                       
     '''
+    # start_d = datetime.strptime(start_datum.get(), "%Y-%m-%d")
+    # end_d = datetime.strptime(end_datum.get(), "%Y-%m-%d")
+    # days = (end_d - start_d).days +1
     widget_x, widget_y = mainframe.winfo_rootx(), mainframe.winfo_rooty()    
-    config_dic.update({"days_back" : (int(tage_choice.get())-1) })
     config_dic.update({"winx" : widget_x}) 
     config_dic.update({"winx" : widget_x}) 
     config_dic.update({"winy" : widget_y}) 
@@ -76,6 +89,7 @@ def quit_my_program():
     config_dic.update({"track_color" : color_choice.current()}) 
     config_dic.update({"cleaning_track" : clean_Track.get()}) 
     config_dic.update({"statistics" : statistics.get()}) 
+    # config_dic.update({"days_back" : (int(tage_choice.get())-1) })
     # config_dic.update({"smooth" : smooth_loops_w.current()}) 
 
     with open(my_config_file, "w") as data:
@@ -369,36 +383,10 @@ def gpx_clean_track(gpx):
         return gpx
 
 # ...................................................
-# Smooth the Track
-# 2022 10 20
-# 2022 10 23 - In fact hasn't made a difference. So I remove it!
-# ...................................................
-# def gpx_smooth_track(gpx, smoothen:int):   
-#     '''
-#     Smoothens the elevation graph.
-
-#     ### Args: 
-#     - Input gpx(parsed), int: smoothen runs
-
-#     - Returns: gpx(reworked parsed) - now with more realistic elevation data
-
-#     ### Methods:
-#         - "Smooths" the elevation graph. Runs multiple times, based on users decision.
-#     '''
-#     if len(gpx.tracks) > 0:
-#         for track in gpx.tracks:  
-#             for segment in track.segments:
-#                 # Smoothen the track eleveation information. Should change between the trackers used!
-#                 for  i in range(smoothen): segment.smooth(vertical=True, horizontal=False, remove_extremes = False )
-#         return gpx
-#     else:
-#         error_message(6)
-
-# ...................................................
 # Attach a name to the track
 # 2022 10 20
 # ...................................................
-def gpx_set_new_trackname(gpx):   
+def gpx_set_new_trackname(gpxdate, gpx):   
     '''
     Traccar returns the name of the tracker as the tracks name only. Let's give it a more sounding name:
     year-month-day_TrackerName
@@ -414,8 +402,8 @@ def gpx_set_new_trackname(gpx):
     if len(gpx.tracks) > 0:
         for track in gpx.tracks:
             format = "%Y-%m-%d_"
-            name = datetime.strftime(track.segments[0].points[0].time, format)
-            name = name + track.name
+            # name = datetime.strftime(track.segments[0].points[0].time, format)
+            name = gpxdate + "_"+ track.name
             track.name = name
     return gpx, name
 
@@ -548,16 +536,176 @@ def get_gpx_data(from_time, to_time, tracker_id, gpx_file_name ): 				# Wird vom
 # ------------------------------------------------------------------------------------------
 if __name__ == "__main__":
     ''' Hier startet das Program '''
-    # global my_xml_filename
-    # global statusNachricht
 
-    def get_from_traccar():
+    def select_start_date():
+        '''Get Start Date from Menue'''
+        end_date = end_datum.get()
+        start_date = start_datum.get()
+        date = datetime.strptime(start_date,"%Y-%m-%d")
+
+        # Make Menue
+        root = Tk()
+        root.title("Set Start Date")
+        root.eval('tk::PlaceWindow . center')
+        top = ttk.Frame(root, padding="25 25 25 25")
+        top.grid(column=0, row=0, sticky=(N, W, E, S))
+        root.geometry('+{}+{}'.format(winx,winy))  
+        root.columnconfigure(0, weight=1)
+        root.rowconfigure(0, weight=1)
+        cal = Calendar(top, selectmode="day", year=date.year, month=date.month, day=date.day)
+        cal.grid(column=1, row=2, sticky="S")
+        
+        def set_date():
+            start_date = cal.selection_get().strftime("%Y-%m-%d")
+            jetzt = datetime.now().strftime("%Y-%m-%d")
+            if start_date > end_date:
+                start_date = end_date
+            if start_date > jetzt:
+                start_date = jetzt
+            start_datum.set(start_date)
+            start_d = datetime.strptime(start_datum.get(), "%Y-%m-%d")
+            end_d = datetime.strptime(end_datum.get(), "%Y-%m-%d")
+            days = (end_d - start_d).days +1
+            style = ttk.Style()
+            # style.configure("Red.TLabel", foreground="red")
+            # ttk.Label(mainframe, text="Fetching "+str(days).rjust(5)+" days", style="Red.TLabel").grid(column=1, row=8, sticky="W")
+            root.destroy()
+
+        # Add buttons to set the start and end dates
+        button = ttk.Button(top, text="Set Start Date", command=set_date)
+        button.grid(column=1, row=4, sticky="S")
+
+    def select_end_date():
+        '''Get End Date from Menue'''
+        start_date = start_datum.get()
+        end_date = end_datum.get()
+        date = datetime.strptime(end_date,"%Y-%m-%d")
+        
+        # Make Menue
+        root = Tk()
+        root.title("Set End Date")
+        root.eval('tk::PlaceWindow . center')
+        top = ttk.Frame(root, padding="25 25 25 25")
+        top.grid(column=0, row=0, sticky=(N, W, E, S))
+        root.geometry('+{}+{}'.format(winx,winy))  
+        root.columnconfigure(0, weight=1)
+        root.rowconfigure(0, weight=1)
+        cal = Calendar(top, selectmode="day", year=date.year, month=date.month, day=date.day)
+        cal.grid(column=1, row=2, sticky="S")
+        
+        def set_date():
+            end_date = cal.selection_get().strftime("%Y-%m-%d")
+            jetzt = datetime.now().strftime("%Y-%m-%d")
+            if end_date < start_date:
+                end_date = start_date
+            if end_date > jetzt:
+                end_date = jetzt
+            end_datum.set(end_date)
+
+            start_d = datetime.strptime(start_datum.get(), "%Y-%m-%d")
+            end_d = datetime.strptime(end_datum.get(), "%Y-%m-%d")
+            days = (end_d - start_d).days +1
+            style = ttk.Style()
+            # style.configure("Red.TLabel", foreground="red")
+            # ttk.Label(mainframe, text="Fetching "+str(days).rjust(5)+" days", style="Red.TLabel").grid(column=1, row=8, sticky="W")
+            root.destroy()
+            
+        # Add buttons to set the start and end dates
+        button = ttk.Button(top, text="Set End Date", command=set_date)
+        button.grid(column=1, row=4, sticky="S")
+
+
+    def get_one_traccar():
+        '''Get One huge track from Traccar'''
+        style = ttk.Style()
+        style.configure("Red.TLabel", foreground="red")
+        ttk.Label(mainframe, text="Running!", style="Red.TLabel").grid(column=1, row=8, sticky="W")
+        root.update()
+        
+        start_d = datetime.strptime(start_datum.get(), "%Y-%m-%d")
+        end_d = datetime.strptime(end_datum.get(), "%Y-%m-%d")
+
+        tracker_id = my_tracker_id[my_tracker_names.index(choice_tracker.get())]
+        track_cleaning = clean_Track.get()
+        trackcolor = color_choice.get()
+        # Der Traccar server speichert alles in UTC. 
+        # Wir benötigen daher für die richtige Abfrage die eigene TZ
+        # Dann verändert sich der TZ Offseet je nachdem, ob wir in Daylight Saving sind oder nicht.
+        # Die Zahlen benötigst du Für die Abfrage beim Traccar Server
+        local_tz_offset = (-time.timezone)                                              # TZ of wich this computer is in. Returns seconds
+        TZ_Offset = '00:00'
+        if time.daylight > 0: 
+            local_tz_offset= local_tz_offset+3600
+        if local_tz_offset != 0:
+            TZ_Offset = convert_sec_2_TZ(local_tz_offset) 
+        
+        lines = []
+        # The to_time is in date format. To further work on it, make it a string
+        from_time = str(start_d)
+        # remove the time from the string and add an new time including a TZ offset
+        from_time = from_time[:10] + 'T00:00:01.0000+' + str(TZ_Offset)
+        to_time = str(end_d)
+        to_time = to_time[:10] + 'T23:59:59.0000+' +  str(TZ_Offset)
+        get_gpx_data(from_time, to_time, tracker_id, gpx_file_name)
+            
+        # ...........................................
+        # Make all necessary changes to the GPX track
+        # ...........................................
+        # first load it
+        # ...........................................
+        gpx_file = open(gpx_file_name, 'r')     # Lese die GPX File ein als das was sie ist: Text
+        gpx = gpxpy.parse(gpx_file)             # Jetzt mache ein GPX/XML aus dem Text
+        if gpx.get_track_points_no() > 0:
+            # lines = gpx_statistics(gpx, lines)
+            statistic_dict = statistics_init()
+            statistic_dict = gpx_statistics(gpx, statistic_dict)
+                
+            if track_cleaning: gpx = gpx_clean_track(gpx)
+            gpxdate = from_time[:10] + "-" + to_time[:10]
+            gpx, new_gpx_fileName = gpx_set_new_trackname(gpxdate, gpx)
+            gpx = gpx_set_new_header(gpx)
+            gpx = gpx_set_correct_timeformat(gpx)
+            gpx = gpx_set_color(gpx, trackcolor) 
+
+            # lines = gpx_statistics(gpx, lines) 
+            statistic_dict = gpx_statistics(gpx, statistic_dict)
+            lines = gpx_statistics_print(statistic_dict, lines)
+            # ...........................................
+            # Finally write GPX to disc
+            # ...........................................
+            new_gpx_fileName1 = new_gpx_fileName + ".gpx"
+            with open(new_gpx_fileName1, 'w') as f:     
+                f.write(gpx.to_xml())  
+            f.close()
+        
+            if statistics.get():
+                new_gpx_fileName1 = new_gpx_fileName + ".txt"
+                with open(new_gpx_fileName1, 'w') as f:
+                    f.writelines(lines)
+                f.close()
+                
+        gpx_file.close()     # Lese die GPX File ein als das was sie ist: Text
+        delete_file(gpx_file_name)
+            
+        style = ttk.Style()
+        style.configure("Green.TLabel", foreground="green")
+        ttk.Label(mainframe, text="Done!    ", style="Green.TLabel").grid(column=1, row=8, sticky="W")
+
+
+    def get_daily_traccar():
         '''Get Tracks from Traccar'''
         style = ttk.Style()
         style.configure("Red.TLabel", foreground="red")
-        ttk.Label(mainframe, text="Running!", style="Red.TLabel").grid(column=1, row=7, sticky="W")
+        ttk.Label(mainframe, text="Running!", style="Red.TLabel").grid(column=1, row=8, sticky="W")
         root.update()
-        daysback = int(tage_choice.get())
+        
+        start_d = datetime.strptime(start_datum.get(), "%Y-%m-%d")
+        end_d = datetime.strptime(end_datum.get(), "%Y-%m-%d")
+        days = (end_d - start_d).days +1
+        jetzt = datetime.now().strftime("%Y-%m-%d")
+        # daysback = jetzt - start_d
+
+        # daysback = int(tage_choice.get())
         tracker_name = str(choice_tracker.get())
         tracker_id = my_tracker_id[my_tracker_names.index(choice_tracker.get())]
         track_cleaning = clean_Track.get()
@@ -567,26 +715,24 @@ if __name__ == "__main__":
         # Dann verändert sich der TZ Offseet je nachdem, ob wir in Daylight Saving sind oder nicht.
         # Die Zahlen benötigst du zweimal: 
         #   1 Für die Abfrage beim Traccar Server
-        #   2 Wenn du den Namen des Tracks baust
         local_tz_offset = (-time.timezone)                                              # TZ of wich this computer is in. Returns seconds
         TZ_Offset = '00:00'
         if time.daylight > 0: 
             local_tz_offset= local_tz_offset+3600
         if local_tz_offset != 0:
             TZ_Offset = convert_sec_2_TZ(local_tz_offset) 
-        for i in range(daysback):														# eine for 0 to Anzahl Tage daysback loop
+        
+        start_d += timedelta(days=-1)
+        from_date = start_d
+        for i in range(days):														# eine for 0 to Anzahl Tage daysback loop
             lines = []
-            from1 = i*-1
-            to1 = i*-1																	# Ebenfalls eine MinusZahl
-            from_time = datetime.now() + timedelta(days=from1)
-            to_time = datetime.now() + timedelta(days=to1)
+            from_date += timedelta(days=1)
             # The to_time is in date format. To further work on it, make it a string
-            from_time = str(from_time)
+            from_time = str(from_date)
             # remove the time from the string and add an new time including a TZ offset
             from_time = from_time[:10] + 'T00:00:01.0000+' + str(TZ_Offset)
-            to_time = str(to_time)
+            to_time = str(from_date)
             to_time = to_time[:10] + 'T23:59:59.0000+' +  str(TZ_Offset)
-            
             get_gpx_data(from_time, to_time, tracker_id, gpx_file_name)
             
             # ...........................................
@@ -603,7 +749,9 @@ if __name__ == "__main__":
                 
                 if track_cleaning: gpx = gpx_clean_track(gpx)
                 # if smooth_loops > 0: gpx = gpx_smooth_track(gpx, smooth_loops)
-                gpx, new_gpx_fileName = gpx_set_new_trackname(gpx)
+                # gpx, new_gpx_fileName = gpx_set_new_trackname(gpx)
+                gpxdate = from_time[:10]
+                gpx, new_gpx_fileName = gpx_set_new_trackname(gpxdate, gpx)
                 gpx = gpx_set_new_header(gpx)
                 gpx = gpx_set_correct_timeformat(gpx)
                 gpx = gpx_set_color(gpx, trackcolor) 
@@ -630,7 +778,7 @@ if __name__ == "__main__":
             
             style = ttk.Style()
             style.configure("Green.TLabel", foreground="green")
-            ttk.Label(mainframe, text="Done!    ", style="Green.TLabel").grid(column=1, row=7, sticky="W")
+            ttk.Label(mainframe, text="Done!    ", style="Green.TLabel").grid(column=1, row=8, sticky="W")
     
     # ....................................................
     # Setzte deine Variablen
@@ -649,9 +797,9 @@ if __name__ == "__main__":
         error_message(3)
     # ................
     # Check days back
-    x = config_dic.get("days_back")
-    if not x: config_dic.update({"days_back" : 0})                                   # Init die Variable in der Config File
-    daysback = config_dic.get("days_back")
+    # x = config_dic.get("days_back")
+    # if not x: config_dic.update({"days_back" : 0})                                   # Init die Variable in der Config File
+    # daysback = config_dic.get("days_back")
     # ................
     # Check if window x position key exists in Config JSON    
     # If not: Create                                      
@@ -708,7 +856,7 @@ if __name__ == "__main__":
     # root = ThemedTk(theme='yaru')
     '''Setting the x and y position from where the menue should pop up'''
     root.geometry('+{}+{}'.format(winx,winy))  
-    root.title("Traccar2GPX - v1.2b (tested with Traccar 5.4)")
+    root.title("Traccar2GPX - v2.0 (tested with Traccar v5.2 - v5.5)")
     mainframe = ttk.Frame(root, borderwidth=5, relief="ridge", padding="5 5 5 5")
     mainframe.grid(column=0, row=0, sticky=(N, W, E, S))
     root.columnconfigure(0, weight=1)
@@ -732,29 +880,39 @@ if __name__ == "__main__":
     if my_tracker_amount == 0:
         error_message(5)
 
+ 
+
+
     # ....................................................
-    # Setzte das Auswahlmenü für die Anzahl der Tage zurück
+    # Setzte das Auswahlmenü für die Datümer
     # ....................................................
-    TageZurueck = []
-    for x in range(1, 366):
-        TageZurueck.append(x)
-    ttk.Label(mainframe, text="Amount of days back:").grid(column=1, row=1, sticky=E)
-    tage_choice = ttk.Combobox(mainframe)
-    tage_choice['values'] = TageZurueck
-    # tage_choice.current(0)
-    tage_choice.current(config_dic.get("days_back"))
-    tage_choice.grid(column=2, columnspan=3, row=1, sticky="W")
-    tage_choice.state(['readonly'])
-    tage_choice.focus()
+    # ttk.Label(mainframe, text="Start Day:").grid(column=1, row=1, sticky=E)
+    
+    start_button = ttk.Button(mainframe, text='Start Day:', command=select_start_date)
+    start_button.grid(column=1,  row=1, sticky="E")
+    start_datum = tk.StringVar()
+    start_datum.set(datetime.now().strftime("%Y-%m-01"))
+    start_entry = ttk.Entry(mainframe, textvariable=start_datum, state="readonly")
+    start_entry.grid(column=2,columnspan=3,  row=1, sticky=W)
+
+    # ttk.Label(mainframe, text="End Day:").grid(column=1, row=2, sticky=E)
+    end_button = ttk.Button(mainframe, text='End Day:', command=select_end_date)
+    end_button.grid(column=1,  row=2, sticky="E")
+    end_datum = tk.StringVar()
+    end_datum.set(datetime.now().strftime("%Y-%m-%d"))
+    end_entry = ttk.Entry(mainframe, textvariable=end_datum, state="readonly")
+    end_entry.grid(column=2,columnspan=3,  row=2, sticky=W)
+
+
 
     # ....................................................
     # Setzte das Auswahlmenü für den Tracker
     # ....................................................
-    ttk.Label(mainframe, text="Tracker:").grid(column=1, row=2, sticky="E")
+    ttk.Label(mainframe, text="Tracker:").grid(column=1, row=3, sticky="E")
     choice_tracker = ttk.Combobox(mainframe)
     choice_tracker['values'] = my_tracker_names
     choice_tracker.current(tracker_selected)                    # tracker_selected Wurde weiter oben in der Initialisierungsektion der Config Presets gesetzt
-    choice_tracker.grid(column=2,columnspan=3,  row=2, sticky=W)
+    choice_tracker.grid(column=2,columnspan=3,  row=3, sticky=W)
     choice_tracker.state(["readonly"])
 
     # ....................................................
@@ -778,25 +936,12 @@ if __name__ == "__main__":
         'Black'
     )
     ttk.Label(mainframe, text="Color of GPX Track:").grid(
-        column=1, row=3, sticky=E)
+        column=1, row=4, sticky=E)
     color_choice = ttk.Combobox(mainframe)
     color_choice['values'] = TrackColor
     color_choice.current(track_color_set)                   # track_color Wurde weiter oben in der Initialisierungsektion der Config Presets gesetzt
-    color_choice.grid(column=2,columnspan=3,  row=3, sticky="W")
+    color_choice.grid(column=2,columnspan=3,  row=4, sticky="W")
     color_choice.state(['readonly'])
-
-    # ....................................................
-    # Setzte das Auswahlmenü für Smoothening der Elevation
-    # ....................................................
-    # smoothRange = []
-    # for x in range(0, 31): smoothRange.append(x)
-    # ttk.Label(mainframe, text="Smooth Elevation data:").grid(column=1, row=4, sticky=E)
-    # smooth_loops_w = ttk.Combobox(mainframe)
-    # smooth_loops_w['values'] = smoothRange
-    # smooth_loops_w.current(smooth_loops)
-    # smooth_loops_w.grid(column=2, columnspan=3, row=4, sticky="W")
-    # smooth_loops_w.state(['readonly'])
-    # # smooth_loops.state(['disabled'])
 
 
     # ....................................................
@@ -820,7 +965,12 @@ if __name__ == "__main__":
     # ....................................................
     # Setze die "Arbeitsknöpfe"
     # ....................................................
-    work_button = ttk.Button(mainframe, text='Get GPX Track', command=get_from_traccar)
+
+    one_track_button = ttk.Button(mainframe, text='Get ONE GPX Track', command=get_one_traccar)
+    one_track_button.grid(column=1,  row=7, sticky="EW")
+    # work_button.focus()
+
+    work_button = ttk.Button(mainframe, text='Get DAILY GPX Track', command=get_daily_traccar)
     work_button.grid(column=2,  row=7, sticky="EW")
     # work_button.focus()
 
