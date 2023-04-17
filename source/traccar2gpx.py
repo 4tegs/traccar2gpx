@@ -14,6 +14,7 @@
 #                   Updated to Selection of Dates instead of days backward.
 #                   Added option to pull either a single track or one track per day of selected range.
 #   2023 04 13      Remebers last Start Date set via JSON
+#   2023 04 16      Now having the choice to selec either a single tracker or all tracker at once
 # 
 # ##########################################################################################
 
