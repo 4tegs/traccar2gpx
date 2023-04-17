@@ -13,6 +13,7 @@
 #   2023 03 27      Upgraded to Python 3.11
 #                   Updated to Selection of Dates instead of days backward.
 #                   Added option to pull either a single track or one track per day of selected range.
+#   2023 04 13      Remebers last Start Date set via JSON
 # 
 # ##########################################################################################
 
@@ -75,7 +76,7 @@ def quit_my_program():
     ''' Save current Windows position in Config File. Afterwards quit my program'''
     '''
     Use sys.exit - not quit()!                                              
-    Check if menue preselcts exists in Config JSON       
+    Check if menue preselects exists in Config JSON       
     If not: Create                                       
     '''
     # start_d = datetime.strptime(start_datum.get(), "%Y-%m-%d")
@@ -89,6 +90,9 @@ def quit_my_program():
     config_dic.update({"track_color" : color_choice.current()}) 
     config_dic.update({"cleaning_track" : clean_Track.get()}) 
     config_dic.update({"statistics" : statistics.get()}) 
+    config_dic.update({"all_tracker" : all_Tracker.get()}) 
+    config_dic.update({"start_date" : start_datum.get()}) 
+    # start_d = datetime.strptime(start_datum.get(), "%Y-%m-%d")
     # config_dic.update({"days_back" : (int(tage_choice.get())-1) })
     # config_dic.update({"smooth" : smooth_loops_w.current()}) 
 
@@ -615,124 +619,15 @@ if __name__ == "__main__":
         button.grid(column=1, row=4, sticky="S")
 
 
+      
+
     def get_one_traccar():
         '''Get One huge track from Traccar'''
-        style = ttk.Style()
-        style.configure("Red.TLabel", foreground="red")
-        ttk.Label(mainframe, text="Running!", style="Red.TLabel").grid(column=1, row=8, sticky="W")
-        root.update()
-        
-        start_d = datetime.strptime(start_datum.get(), "%Y-%m-%d")
-        end_d = datetime.strptime(end_datum.get(), "%Y-%m-%d")
-
-        tracker_id = my_tracker_id[my_tracker_names.index(choice_tracker.get())]
-        track_cleaning = clean_Track.get()
-        trackcolor = color_choice.get()
-        # Der Traccar server speichert alles in UTC. 
-        # Wir benötigen daher für die richtige Abfrage die eigene TZ
-        # Dann verändert sich der TZ Offseet je nachdem, ob wir in Daylight Saving sind oder nicht.
-        # Die Zahlen benötigst du Für die Abfrage beim Traccar Server
-        local_tz_offset = (-time.timezone)                                              # TZ of wich this computer is in. Returns seconds
-        TZ_Offset = '00:00'
-        if time.daylight > 0: 
-            local_tz_offset= local_tz_offset+3600
-        if local_tz_offset != 0:
-            TZ_Offset = convert_sec_2_TZ(local_tz_offset) 
-        
-        lines = []
-        # The to_time is in date format. To further work on it, make it a string
-        from_time = str(start_d)
-        # remove the time from the string and add an new time including a TZ offset
-        from_time = from_time[:10] + 'T00:00:01.0000+' + str(TZ_Offset)
-        to_time = str(end_d)
-        to_time = to_time[:10] + 'T23:59:59.0000+' +  str(TZ_Offset)
-        get_gpx_data(from_time, to_time, tracker_id, gpx_file_name)
-            
-        # ...........................................
-        # Make all necessary changes to the GPX track
-        # ...........................................
-        # first load it
-        # ...........................................
-        gpx_file = open(gpx_file_name, 'r')     # Lese die GPX File ein als das was sie ist: Text
-        gpx = gpxpy.parse(gpx_file)             # Jetzt mache ein GPX/XML aus dem Text
-        if gpx.get_track_points_no() > 0:
-            # lines = gpx_statistics(gpx, lines)
-            statistic_dict = statistics_init()
-            statistic_dict = gpx_statistics(gpx, statistic_dict)
-                
-            if track_cleaning: gpx = gpx_clean_track(gpx)
-            gpxdate = from_time[:10] + "-" + to_time[:10]
-            gpx, new_gpx_fileName = gpx_set_new_trackname(gpxdate, gpx)
-            gpx = gpx_set_new_header(gpx)
-            gpx = gpx_set_correct_timeformat(gpx)
-            gpx = gpx_set_color(gpx, trackcolor) 
-
-            # lines = gpx_statistics(gpx, lines) 
-            statistic_dict = gpx_statistics(gpx, statistic_dict)
-            lines = gpx_statistics_print(statistic_dict, lines)
-            # ...........................................
-            # Finally write GPX to disc
-            # ...........................................
-            new_gpx_fileName1 = new_gpx_fileName + ".gpx"
-            with open(new_gpx_fileName1, 'w') as f:     
-                f.write(gpx.to_xml())  
-            f.close()
-        
-            if statistics.get():
-                new_gpx_fileName1 = new_gpx_fileName + ".txt"
-                with open(new_gpx_fileName1, 'w') as f:
-                    f.writelines(lines)
-                f.close()
-                
-        gpx_file.close()     # Lese die GPX File ein als das was sie ist: Text
-        delete_file(gpx_file_name)
-            
-        style = ttk.Style()
-        style.configure("Green.TLabel", foreground="green")
-        ttk.Label(mainframe, text="Done!    ", style="Green.TLabel").grid(column=1, row=8, sticky="W")
-
-
-    def get_daily_traccar():
-        '''Get Tracks from Traccar'''
-        style = ttk.Style()
-        style.configure("Red.TLabel", foreground="red")
-        ttk.Label(mainframe, text="Running!", style="Red.TLabel").grid(column=1, row=8, sticky="W")
-        root.update()
-        
-        start_d = datetime.strptime(start_datum.get(), "%Y-%m-%d")
-        end_d = datetime.strptime(end_datum.get(), "%Y-%m-%d")
-        days = (end_d - start_d).days +1
-        jetzt = datetime.now().strftime("%Y-%m-%d")
-        # daysback = jetzt - start_d
-
-        # daysback = int(tage_choice.get())
-        tracker_name = str(choice_tracker.get())
-        tracker_id = my_tracker_id[my_tracker_names.index(choice_tracker.get())]
-        track_cleaning = clean_Track.get()
-        trackcolor = color_choice.get()
-        # Der Traccar server speichert alles in UTC. 
-        # Wir benötigen daher für die richtige Abfrage die eigene TZ
-        # Dann verändert sich der TZ Offseet je nachdem, ob wir in Daylight Saving sind oder nicht.
-        # Die Zahlen benötigst du zweimal: 
-        #   1 Für die Abfrage beim Traccar Server
-        local_tz_offset = (-time.timezone)                                              # TZ of wich this computer is in. Returns seconds
-        TZ_Offset = '00:00'
-        if time.daylight > 0: 
-            local_tz_offset= local_tz_offset+3600
-        if local_tz_offset != 0:
-            TZ_Offset = convert_sec_2_TZ(local_tz_offset) 
-        
-        start_d += timedelta(days=-1)
-        from_date = start_d
-        for i in range(days):														# eine for 0 to Anzahl Tage daysback loop
+        def get_my_track():
+            ''' Subroutine is used in two ways: When looping through all tracker or when working on a single tracker only.'''
             lines = []
-            from_date += timedelta(days=1)
-            # The to_time is in date format. To further work on it, make it a string
-            from_time = str(from_date)
-            # remove the time from the string and add an new time including a TZ offset
-            from_time = from_time[:10] + 'T00:00:01.0000+' + str(TZ_Offset)
-            to_time = str(from_date)
-            to_time = to_time[:10] + 'T23:59:59.0000+' +  str(TZ_Offset)
+            track_cleaning = clean_Track.get()
+            trackcolor = color_choice.get()
             get_gpx_data(from_time, to_time, tracker_id, gpx_file_name)
             
             # ...........................................
@@ -743,20 +638,16 @@ if __name__ == "__main__":
             gpx_file = open(gpx_file_name, 'r')     # Lese die GPX File ein als das was sie ist: Text
             gpx = gpxpy.parse(gpx_file)             # Jetzt mache ein GPX/XML aus dem Text
             if gpx.get_track_points_no() > 0:
-                # lines = gpx_statistics(gpx, lines)
                 statistic_dict = statistics_init()
                 statistic_dict = gpx_statistics(gpx, statistic_dict)
                 
                 if track_cleaning: gpx = gpx_clean_track(gpx)
-                # if smooth_loops > 0: gpx = gpx_smooth_track(gpx, smooth_loops)
-                # gpx, new_gpx_fileName = gpx_set_new_trackname(gpx)
-                gpxdate = from_time[:10]
+                gpxdate = from_time[:10] + "-" + to_time[:10]
                 gpx, new_gpx_fileName = gpx_set_new_trackname(gpxdate, gpx)
                 gpx = gpx_set_new_header(gpx)
                 gpx = gpx_set_correct_timeformat(gpx)
                 gpx = gpx_set_color(gpx, trackcolor) 
 
-                # lines = gpx_statistics(gpx, lines) 
                 statistic_dict = gpx_statistics(gpx, statistic_dict)
                 lines = gpx_statistics_print(statistic_dict, lines)
                 # ...........................................
@@ -773,13 +664,162 @@ if __name__ == "__main__":
                         f.writelines(lines)
                     f.close()
                 
-            gpx_file.close()     # Lese die GPX File ein als das was sie ist: Text
+            gpx_file.close()     
             delete_file(gpx_file_name)
-            
-            style = ttk.Style()
-            style.configure("Green.TLabel", foreground="green")
-            ttk.Label(mainframe, text="Done!    ", style="Green.TLabel").grid(column=1, row=8, sticky="W")
     
+        style = ttk.Style()
+        style.configure("Red.TLabel", foreground="red")
+        ttk.Label(mainframe, text="Running!", style="Red.TLabel").grid(column=1, row=8, sticky="W")
+        root.update()
+        
+        start_d = datetime.strptime(start_datum.get(), "%Y-%m-%d")
+        end_d = datetime.strptime(end_datum.get(), "%Y-%m-%d")
+
+        # Der Traccar server speichert alles in UTC. 
+        # Wir benötigen daher für die richtige Abfrage die eigene TZ
+        # Dann verändert sich der TZ Offseet je nachdem, ob wir in Daylight Saving sind oder nicht.
+        # Die Zahlen benötigst du Für die Abfrage beim Traccar Server
+        local_tz_offset = (-time.timezone)                                              # TZ of wich this computer is in. Returns seconds
+        TZ_Offset = '00:00'
+        if time.daylight > 0: 
+            local_tz_offset= local_tz_offset+3600
+        if local_tz_offset != 0:
+            TZ_Offset = convert_sec_2_TZ(local_tz_offset) 
+        
+        # The to_time is in date format. To further work on it, make it a string
+        from_time = str(start_d)
+        # remove the time from the string and add an new time including a TZ offset
+        from_time = from_time[:10] + 'T00:00:01.0000+' + str(TZ_Offset)
+        to_time = str(end_d)
+        to_time = to_time[:10] + 'T23:59:59.0000+' +  str(TZ_Offset)
+
+        # Jetzt frage ich ab, ob nur der eine Tracker abgefragt wird oder alle
+        if all_Tracker.get():
+            i = 0
+            tracker_loops = my_tracker_amount
+            for i in range(tracker_loops):
+                tracker_id = my_tracker_id[i]
+                get_my_track()
+        else:
+            tracker_id = my_tracker_id[my_tracker_names.index(choice_tracker.get())]
+            get_my_track()
+        
+        style = ttk.Style()
+        style.configure("Green.TLabel", foreground="green")
+        ttk.Label(mainframe, text="Done!    ", style="Green.TLabel").grid(column=1, row=8, sticky="W")
+
+
+
+    # ...........................................
+    # Get the tracks per day 
+    # ...........................................
+    def get_daily_traccar():
+        '''Get Daily Tracks from Traccar'''
+        def get_my_track():                 
+            ''' Subroutine is used in two ways: When looping through all tracker or when working on a single tracker only.'''
+            start_d = datetime.strptime(start_datum.get(), "%Y-%m-%d")
+            end_d = datetime.strptime(end_datum.get(), "%Y-%m-%d")
+            days = (end_d - start_d).days +1
+            jetzt = datetime.now().strftime("%Y-%m-%d")
+            track_cleaning = clean_Track.get()
+            trackcolor = color_choice.get()
+            # Der Traccar server speichert alles in UTC. 
+            # Wir benötigen daher für die richtige Abfrage die eigene TZ
+            # Dann verändert sich der TZ Offseet je nachdem, ob wir in Daylight Saving sind oder nicht.
+            # Die Zahlen benötigst du zweimal: 
+            #   1 Für die Abfrage beim Traccar Server
+            local_tz_offset = (-time.timezone)                                              # TZ of wich this computer is in. Returns seconds
+            TZ_Offset = '00:00'
+            if time.daylight > 0: 
+                local_tz_offset= local_tz_offset+3600
+            if local_tz_offset != 0:
+                TZ_Offset = convert_sec_2_TZ(local_tz_offset) 
+            
+            start_d += timedelta(days=-1)
+            from_date = start_d
+            for i in range(days):														# eine for 0 to Anzahl Tage daysback loop
+                lines = []
+                from_date += timedelta(days=1)
+                # The to_time is in date format. To further work on it, make it a string
+                from_time = str(from_date)
+                # remove the time from the string and add an new time including a TZ offset
+                from_time = from_time[:10] + 'T00:00:01.0000+' + str(TZ_Offset)
+                to_time = str(from_date)
+                to_time = to_time[:10] + 'T23:59:59.0000+' +  str(TZ_Offset)
+                get_gpx_data(from_time, to_time, tracker_id, gpx_file_name)
+                
+                # ...........................................
+                # Make all necessary changes to the GPX track
+                # ...........................................
+                # first load it
+                # ...........................................
+                gpx_file = open(gpx_file_name, 'r')     # Lese die GPX File ein als das was sie ist: Text
+                gpx = gpxpy.parse(gpx_file)             # Jetzt mache ein GPX/XML aus dem Text
+                if gpx.get_track_points_no() > 0:
+                    # lines = gpx_statistics(gpx, lines)
+                    statistic_dict = statistics_init()
+                    statistic_dict = gpx_statistics(gpx, statistic_dict)
+                    
+                    if track_cleaning: gpx = gpx_clean_track(gpx)
+                    # if smooth_loops > 0: gpx = gpx_smooth_track(gpx, smooth_loops)
+                    # gpx, new_gpx_fileName = gpx_set_new_trackname(gpx)
+                    gpxdate = from_time[:10]
+                    gpx, new_gpx_fileName = gpx_set_new_trackname(gpxdate, gpx)
+                    gpx = gpx_set_new_header(gpx)
+                    gpx = gpx_set_correct_timeformat(gpx)
+                    gpx = gpx_set_color(gpx, trackcolor) 
+
+                    # lines = gpx_statistics(gpx, lines) 
+                    statistic_dict = gpx_statistics(gpx, statistic_dict)
+                    lines = gpx_statistics_print(statistic_dict, lines)
+                    # ...........................................
+                    # Finally write GPX to disc
+                    # ...........................................
+                    new_gpx_fileName1 = new_gpx_fileName + ".gpx"
+                    with open(new_gpx_fileName1, 'w') as f:     
+                        f.write(gpx.to_xml())  
+                    f.close()
+            
+                    if statistics.get():
+                        new_gpx_fileName1 = new_gpx_fileName + ".txt"
+                        with open(new_gpx_fileName1, 'w') as f:
+                            f.writelines(lines)
+                        f.close()
+                    
+                gpx_file.close()     # Lese die GPX File ein als das was sie ist: Text
+                delete_file(gpx_file_name)
+
+        style = ttk.Style()
+        style.configure("Red.TLabel", foreground="red")
+        ttk.Label(mainframe, text="Running!", style="Red.TLabel").grid(column=1, row=8, sticky="W")
+        root.update()
+        # Jetzt frage ich ab, ob nur der eine Tracker abgefragt wird oder alle
+        if all_Tracker.get():
+            i = 0
+            tracker_loops = my_tracker_amount
+            for i in range(tracker_loops):
+                tracker_id = my_tracker_id[i]
+                get_my_track()
+        else:
+            tracker_id = my_tracker_id[my_tracker_names.index(choice_tracker.get())]
+            get_my_track()
+
+        style = ttk.Style()
+        style.configure("Green.TLabel", foreground="green")
+        ttk.Label(mainframe, text="Done!    ", style="Green.TLabel").grid(column=1, row=8, sticky="W")
+    
+    # ...........................................
+    # Hier wird der Status des Click Select Buttons
+    # für Alle Tracker aus einmal
+    # abgefragt und entsprechend das Tracker Selektionsmenü
+    # an- oder ausgeschaltet
+    # ...........................................
+    def toggle_tracker_selection():
+        if all_Tracker.get():
+            choice_tracker.state(["disabled"])
+        else:
+            choice_tracker.state(["!disabled"])
+
     # ....................................................
     # Setzte deine Variablen
     # ....................................................
@@ -836,6 +876,18 @@ if __name__ == "__main__":
     # if not x: config_dic.update({"smooth" : 0})                                   # Init die Variable in der Config File
     # smooth_loops = config_dic.get("smooth")
 
+    # ................
+    # Check for last Start Date set
+    x = config_dic.get("start_date")
+    start_date = (datetime.now().strftime("%Y-%m-%d"))
+    if not x: config_dic.update({"start_date" : start_date})                                   # Init die Variable in der Config File
+    start_date = config_dic.get("start_date")
+
+    # ................
+    # Check for All Tracker Flag set
+    x = config_dic.get("all_tracker")
+    if not x: config_dic.update({"all_tracker" : False})                                   # Init die Variable in der Config File
+    all_tracker = config_dic.get("all_tracker")
 
     # ....................................................
     # Baue das Menü auf
@@ -856,7 +908,7 @@ if __name__ == "__main__":
     # root = ThemedTk(theme='yaru')
     '''Setting the x and y position from where the menue should pop up'''
     root.geometry('+{}+{}'.format(winx,winy))  
-    root.title("Traccar2GPX - v2.0 (tested with Traccar v5.2 - v5.5)")
+    root.title("Traccar2GPX - v2.1 (tested with Traccar v5.4 - v5.6)")
     mainframe = ttk.Frame(root, borderwidth=5, relief="ridge", padding="5 5 5 5")
     mainframe.grid(column=0, row=0, sticky=(N, W, E, S))
     root.columnconfigure(0, weight=1)
@@ -880,9 +932,6 @@ if __name__ == "__main__":
     if my_tracker_amount == 0:
         error_message(5)
 
- 
-
-
     # ....................................................
     # Setzte das Auswahlmenü für die Datümer
     # ....................................................
@@ -891,7 +940,8 @@ if __name__ == "__main__":
     start_button = ttk.Button(mainframe, text='Start Day:', command=select_start_date)
     start_button.grid(column=1,  row=1, sticky="E")
     start_datum = tk.StringVar()
-    start_datum.set(datetime.now().strftime("%Y-%m-01"))
+    # start_datum.set(datetime.now().strftime("%Y-%m-01"))
+    start_datum.set(start_date)
     start_entry = ttk.Entry(mainframe, textvariable=start_datum, state="readonly")
     start_entry.grid(column=2,columnspan=3,  row=1, sticky=W)
 
@@ -904,7 +954,6 @@ if __name__ == "__main__":
     end_entry.grid(column=2,columnspan=3,  row=2, sticky=W)
 
 
-
     # ....................................................
     # Setzte das Auswahlmenü für den Tracker
     # ....................................................
@@ -914,6 +963,16 @@ if __name__ == "__main__":
     choice_tracker.current(tracker_selected)                    # tracker_selected Wurde weiter oben in der Initialisierungsektion der Config Presets gesetzt
     choice_tracker.grid(column=2,columnspan=3,  row=3, sticky=W)
     choice_tracker.state(["readonly"])
+
+    # ....................................................
+    # Setzte das Auswahlmenü für Alle Tracks!
+    # ....................................................
+    # ttk.Label(mainframe, text="All Tracks at once:").grid(column=4, row=3, sticky=W)
+    all_Tracker = BooleanVar(value=True)                                    # Zwingend die init einer TkInter BooleanVar machen!
+    all_Tracker.set(config_dic.get("all_tracker"))                       # Die BoolenVar wird mit set und get behandelt.
+    check_all_Tracker = ttk.Checkbutton(mainframe,  variable=all_Tracker, text="All Tracker at once")
+    check_all_Tracker.grid(column=3, row=3, sticky="W")
+    toggle_tracker_selection()                                              # stelle sicher, dass der letzte Status gesetzt wird.
 
     # ....................................................
     # Setzte das Auswahlmenü für die Farben des Tracks
@@ -979,6 +1038,8 @@ if __name__ == "__main__":
 
     for child in mainframe.winfo_children():
         child.grid_configure(padx=5, pady=5) 
+
+    check_all_Tracker.configure(command=toggle_tracker_selection)
 
     root.update()
     

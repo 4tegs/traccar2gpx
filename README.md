@@ -28,14 +28,15 @@ While Traccars export option is pretty good, I have different needs. Let's compa
 |Track format |KML | GPX|
 |Track has a sounding name  | - | x |
 |One track for timespan selected  | x | x |
-|One track per day  | - | x |
+|One track per day of selected timespan. | - | x |
+|Get data from a single tracker or all tracker at once.  | - | x |
 |Defined color of track  | - | x |
 |Track can be cleaned from trackpoints not in motion or in motion with <2,5km/h  | - | x |
 |Track includes timestamp data of each tracks waypoint  | - | x |
 |Track can be used for geotagging  | - | x |
 
 ## Compatibility
-This version has been tested with Traccar 5.2, 5.3, 5.4, 5.5
+This version has been tested with Traccar 5.4, 5.5, 5.6
 ## Configuration file
 
 traccar2gpx is configured by a sidecar configuration file. If you don't edit your config file with the needed credentials, traccar2gpx fails to run with an error exception.  
@@ -66,6 +67,7 @@ Here is an example of how to edit your config file:
 |Start Day|Select the first day you want to pull tracks from Traccar. If you just want today, set todays date.
 |End Day|Select the last day. If you just want today, set todays date.
 |Tracker:|Select the tracker you want to pull the tracks from.  |
+|All Tracker at once:|Check the box if you want the tracks of all tracker you own within the selected timeframe. You still can receive the tracks as "daily tracks" or as "one track per timefrime".  |
 |Color of the GPX Track:|Select the color the GPX tracks should get.  |
 |Clean track: |This is somehow tricky. It will delete all waypoints from the track that had no motion or motion is < 2,5km/H. It will delete the track if there are less then 10 trackpoints in total. Don't use this option if you use the track for e.g. Geotagging your pictures as no motion trackpoints can be of value.  |
 |Get ONE GPX Track:|All trackdata from "Start Day" to "End Day" will be pulled into one single track. Usage example: Use the track for geotagging all pictures from a vacation. The tracks name shows the start and end date + tracker name. If there is no file, there wasn't enough trackdata! |
@@ -86,3 +88,4 @@ Here is an example of how to edit your config file:
 | | You can pull data now back to one year.|
 | | EXE file didn't work standalone. Should be fixed now.|
 |2.0 | Moved from dayrange to date selection. Added option to pull either a single track or one track per day of selected range.|
+|2.1 | Included checkbox to receive tracks within the selected timeframe for all tracker you own by one click. <br> Startdate is now saved in traccar2gpx.json. This can be convienient if you regulary prefer to start from a given date. The end date is always set to todays date. |
