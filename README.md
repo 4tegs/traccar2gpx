@@ -24,8 +24,9 @@ While Traccars export option is pretty good, I have different needs. Let's compa
 |Option |Traccar |traccar2gpx|
 --- | :---: | :---: |
 |Several selections of days, weeks, month, range  | x | - |
-|Selection of Start and End date  | - | x |
+|Selection of Start and End date  | x | x |
 |Track format |KML | GPX|
+|GPX Garmin Format|-|x|
 |Track has a sounding name  | - | x |
 |One track for timespan selected  | x | x |
 |One track per day of selected timespan. | - | x |
@@ -36,7 +37,11 @@ While Traccars export option is pretty good, I have different needs. Let's compa
 |Track can be used for geotagging  | - | x |
 
 ## Compatibility
+<<<<<<< HEAD
 This version has been tested with Traccar 5.4, 5.5, 5.6
+=======
+This version has been tested with Traccar 5.4, 5.5
+>>>>>>> ae0a36e552e341099614023d1d71494c6c7c0220
 ## Configuration file
 
 traccar2gpx is configured by a sidecar configuration file. If you don't edit your config file with the needed credentials, traccar2gpx fails to run with an error exception.  
