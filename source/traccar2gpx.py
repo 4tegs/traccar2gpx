@@ -145,8 +145,10 @@ def error_message(error):
     if error == 4:
         ttk.Label(mainframe, text="Can't query the devices from Traccar.").grid(
             column=1, row=1, sticky=W)
-        ttk.Label(mainframe, text="Make sure you have admin rights and at least one tracker device active.").grid(
-            column=1, row=2, sticky=W)
+        ttk.Label(mainframe, text="Make sure you entered the right user credentials.").grid(
+            column=1, row=2, sticky=W)        
+        ttk.Label(mainframe, text="Make sure the user has admin rights and at least one tracker device applied.").grid(
+            column=1, row=3, sticky=W)        
     
     if error == 5:
             ttk.Label(mainframe, text="There are no active Tracker available on Traccar.").grid(
@@ -158,6 +160,18 @@ def error_message(error):
             ttk.Label(mainframe, text="Routine has been called without GPX content!").grid(
                 column=1, row=1, sticky=W)
             ttk.Label(mainframe, text="This must not have happend. Call the programmer....").grid(
+                column=1, row=2, sticky=W)
+            
+    if error == 7:
+            ttk.Label(mainframe, text="Your root URL seems to be wrong.").grid(
+                column=1, row=1, sticky=W)
+            ttk.Label(mainframe, text="Is it missing a http?").grid(
+                column=1, row=2, sticky=W)
+            
+    if error == 8:
+            ttk.Label(mainframe, text="Your root URL seems to be wrong.").grid(
+                column=1, row=1, sticky=W)
+            ttk.Label(mainframe, text="Are you sure that your root_url points to the right server?").grid(
                 column=1, row=2, sticky=W)
 
 
@@ -328,9 +342,17 @@ def get_all_devices(traccar_result):
     headers = {'accept': 'application/json'}
     a = HTTPBasicAuth(config_dic['email'], config_dic['password'])
     payload = {'all': 'True'}
-    r = requests.get(url,  params=payload, auth=a, headers=headers)
+    try: 
+        r = requests.get(url,  params=payload, auth=a, headers=headers)
+    except requests.exceptions.InvalidSchema:
+        # You may need to enter a http:// before your URL
+        error_message(7)
+    except requests.exceptions.ConnectionError:
+        # URL is wrong. Program can't connect to server.
+        error_message(8)
     # ...........................................................................
     if r.status_code != 200:
+        # Alle anderen Fehler die nicht zum crash des Programs führen
         error_message(4)
     else:
         with open(traccar_result, 'wb') as f:												# Schreibe eine binäre Datei
@@ -542,6 +564,8 @@ def get_gpx_data(from_time, to_time, tracker_id, gpx_file_name ): 				# Wird vom
 if __name__ == "__main__":
     ''' Hier startet das Program '''
 
+
+
     def select_start_date():
         '''Get Start Date from Menue'''
         end_date = end_datum.get()
@@ -568,10 +592,10 @@ if __name__ == "__main__":
             if start_date > jetzt:
                 start_date = jetzt
             start_datum.set(start_date)
-            start_d = datetime.strptime(start_datum.get(), "%Y-%m-%d")
-            end_d = datetime.strptime(end_datum.get(), "%Y-%m-%d")
-            days = (end_d - start_d).days +1
-            style = ttk.Style()
+            # start_d = datetime.strptime(start_datum.get(), "%Y-%m-%d")
+            # end_d = datetime.strptime(end_datum.get(), "%Y-%m-%d")
+            # days = (end_d - start_d).days +1
+            # style = ttk.Style()
             # style.configure("Red.TLabel", foreground="red")
             # ttk.Label(mainframe, text="Fetching "+str(days).rjust(5)+" days", style="Red.TLabel").grid(column=1, row=8, sticky="W")
             root.destroy()
@@ -607,10 +631,10 @@ if __name__ == "__main__":
                 end_date = jetzt
             end_datum.set(end_date)
 
-            start_d = datetime.strptime(start_datum.get(), "%Y-%m-%d")
-            end_d = datetime.strptime(end_datum.get(), "%Y-%m-%d")
-            days = (end_d - start_d).days +1
-            style = ttk.Style()
+            # start_d = datetime.strptime(start_datum.get(), "%Y-%m-%d")
+            # end_d = datetime.strptime(end_datum.get(), "%Y-%m-%d")
+            # days = (end_d - start_d).days +1
+            # style = ttk.Style()
             # style.configure("Red.TLabel", foreground="red")
             # ttk.Label(mainframe, text="Fetching "+str(days).rjust(5)+" days", style="Red.TLabel").grid(column=1, row=8, sticky="W")
             root.destroy()
@@ -619,6 +643,14 @@ if __name__ == "__main__":
         button = ttk.Button(top, text="Set End Date", command=set_date)
         button.grid(column=1, row=4, sticky="S")
 
+
+    def select_today_date():
+        start_datum.set(datetime.now().strftime("%Y-%m-%d"))
+        start_entry = ttk.Entry(mainframe, textvariable=start_datum, state="readonly")
+        start_entry.grid(column=2,columnspan=3,  row=1, sticky=W)
+        end_datum.set(datetime.now().strftime("%Y-%m-%d"))
+        end_entry = ttk.Entry(mainframe, textvariable=end_datum, state="readonly")
+        end_entry.grid(column=2,columnspan=3,  row=2, sticky=W)
 
       
 
@@ -909,7 +941,7 @@ if __name__ == "__main__":
     # root = ThemedTk(theme='yaru')
     '''Setting the x and y position from where the menue should pop up'''
     root.geometry('+{}+{}'.format(winx,winy))  
-    root.title("Traccar2GPX - v2.1 (tested with Traccar v5.4 - v5.6)")
+    root.title("Traccar2GPX - v2.3 (tested with Traccar v5.4 - v5.12)")
     mainframe = ttk.Frame(root, borderwidth=5, relief="ridge", padding="5 5 5 5")
     mainframe.grid(column=0, row=0, sticky=(N, W, E, S))
     root.columnconfigure(0, weight=1)
@@ -936,8 +968,6 @@ if __name__ == "__main__":
     # ....................................................
     # Setzte das Auswahlmenü für die Datümer
     # ....................................................
-    # ttk.Label(mainframe, text="Start Day:").grid(column=1, row=1, sticky=E)
-    
     start_button = ttk.Button(mainframe, text='Start Day:', command=select_start_date)
     start_button.grid(column=1,  row=1, sticky="E")
     start_datum = tk.StringVar()
@@ -953,6 +983,10 @@ if __name__ == "__main__":
     end_datum.set(datetime.now().strftime("%Y-%m-%d"))
     end_entry = ttk.Entry(mainframe, textvariable=end_datum, state="readonly")
     end_entry.grid(column=2,columnspan=3,  row=2, sticky=W)
+
+    start_button = ttk.Button(mainframe, text='Today:', command=select_today_date)
+    start_button.grid(column=3,  row=2, sticky="WE")
+    # start_datum.set(datetime.now().strftime("%Y-%m-01"))
 
 
     # ....................................................
