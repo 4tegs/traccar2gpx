@@ -36,7 +36,7 @@ While Traccars export option is pretty good, I have different needs. Let's compa
 |Track can be used for geotagging  | - | x |
 
 ## Compatibility
-This version has been tested with Traccar 5.4 - 5.12
+This version has been tested with Traccar 5.4 - 6.0
 ## Configuration file
 
 traccar2gpx is configured by a sidecar configuration file. If you don't edit your config file with the needed credentials, traccar2gpx fails to run with an error exception.  
