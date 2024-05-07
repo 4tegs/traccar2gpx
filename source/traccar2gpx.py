@@ -97,7 +97,7 @@ def quit_my_program():
     # config_dic.update({"days_back" : (int(tage_choice.get())-1) })
     # config_dic.update({"smooth" : smooth_loops_w.current()}) 
 
-    with open(my_config_file, "w") as data:
+    with open(my_config_file, "w", encoding='utf-8') as data:
         json.dump(config_dic, data, indent=4)    
 
     sys.exit('Tschüss!')
@@ -293,7 +293,7 @@ def load_config(my_config_file):
     ''' If exists: Load JSON Configuration file. -> JSON  '''
     ''' Similar to the load_json but with a different error code in case the file doesn't exist. '''
     try:																                # Lade die Config Datei
-        with open(my_config_file) as f:												#
+        with open(my_config_file, encoding='utf-8') as f:												#
             return json.load(f)															#
 
     except FileNotFoundError:
@@ -304,7 +304,7 @@ def load_config(my_config_file):
             "password": "your password"
         }
 
-        with open(my_config_file, "w") as data:
+        with open(my_config_file, "w", encoding='utf-8') as data:
             json.dump(config_dic, data, indent=4)    
         error_message(1)
 
@@ -315,7 +315,7 @@ def load_config(my_config_file):
 def load_json(my_config_file):
     ''' If exists: Load JSON file. -> JSON  '''
     try:																                # Lade die Config Datei
-        with open(my_config_file) as f:												#
+        with open(my_config_file, encoding='utf-8') as f:												#
             return json.load(f)															#
     except FileNotFoundError:
         error_message(2)
@@ -668,7 +668,7 @@ if __name__ == "__main__":
             # ...........................................
             # first load it
             # ...........................................
-            gpx_file = open(gpx_file_name, 'r')     # Lese die GPX File ein als das was sie ist: Text
+            gpx_file = open(gpx_file_name, 'r', encoding='utf-8')     # Lese die GPX File ein als das was sie ist: Text
             gpx = gpxpy.parse(gpx_file)             # Jetzt mache ein GPX/XML aus dem Text
             if gpx.get_track_points_no() > 0:
                 statistic_dict = statistics_init()
@@ -687,13 +687,13 @@ if __name__ == "__main__":
                 # Finally write GPX to disc
                 # ...........................................
                 new_gpx_fileName1 = new_gpx_fileName + ".gpx"
-                with open(new_gpx_fileName1, 'w') as f:     
+                with open(new_gpx_fileName1, 'w', encoding='utf-8') as f:     
                     f.write(gpx.to_xml())  
                 f.close()
         
                 if statistics.get():
                     new_gpx_fileName1 = new_gpx_fileName + ".txt"
-                    with open(new_gpx_fileName1, 'w') as f:
+                    with open(new_gpx_fileName1, 'w', encoding='utf-8') as f:
                         f.writelines(lines)
                     f.close()
                 
@@ -786,7 +786,7 @@ if __name__ == "__main__":
                 # ...........................................
                 # first load it
                 # ...........................................
-                gpx_file = open(gpx_file_name, 'r')     # Lese die GPX File ein als das was sie ist: Text
+                gpx_file = open(gpx_file_name, 'r', encoding='utf-8')     # Lese die GPX File ein als das was sie ist: Text
                 gpx = gpxpy.parse(gpx_file)             # Jetzt mache ein GPX/XML aus dem Text
                 if gpx.get_track_points_no() > 0:
                     # lines = gpx_statistics(gpx, lines)
@@ -809,13 +809,13 @@ if __name__ == "__main__":
                     # Finally write GPX to disc
                     # ...........................................
                     new_gpx_fileName1 = new_gpx_fileName + ".gpx"
-                    with open(new_gpx_fileName1, 'w') as f:     
+                    with open(new_gpx_fileName1, 'w', encoding='utf-8') as f:     
                         f.write(gpx.to_xml())  
                     f.close()
             
                     if statistics.get():
                         new_gpx_fileName1 = new_gpx_fileName + ".txt"
-                        with open(new_gpx_fileName1, 'w') as f:
+                        with open(new_gpx_fileName1, 'w', encoding='utf-8') as f:
                             f.writelines(lines)
                         f.close()
                     
