@@ -36,7 +36,7 @@ While Traccars export option is pretty good, I have different needs. Let's compa
 |Track can be used for geotagging  | - | x |
 
 ## Compatibility
-This version has been tested with Traccar 5.4 - 6.0
+This version has been tested with Traccar 5.4, 5.5, 5.6, 5.8
 ## Configuration file
 
 traccar2gpx is configured by a sidecar configuration file. If you don't edit your config file with the needed credentials, traccar2gpx fails to run with an error exception.  
@@ -55,7 +55,7 @@ Here is an example of how to edit your config file:
 * The file **must** be in the same directory as **traccar2gpx.exe**
 * The file must include:
     *  the **URL** to access the traccar server & the **port** to access it. Typically this is http://your_url:8082 . <br />**Remark:** http not http**s**!  <br /> If you self-host your traccar server, make sure the have the right port forward setup in your router.
-    *  your user-id and password that has the proper rights to access your traccar **admin** API.
+    *  your user-id and password that has the proper rights to access your traccar admin API.
     
 ## Use of traccar2gpx
 
@@ -64,8 +64,9 @@ Here is an example of how to edit your config file:
 
 |Option |Explanation |
 --- | --- |
-|Start Day|Select the first day you want to pull tracks from Traccar. If you just want today, set todays date.
-|End Day|Select the last day. If you just want today, set todays date.
+|Start Day:|Select the first day you want to pull tracks from Traccar. If you just want today, set todays date.
+|End Day:|Select the last day. If you just want today, set todays date.
+|Today:|Set Satrt Day and End Day to todays date.
 |Tracker:|Select the tracker you want to pull the tracks from.  |
 |All Tracker at once:|Check the box if you want the tracks of all tracker you own within the selected timeframe. You still can receive the tracks as "daily tracks" or as "one track per timefrime".  |
 |Color of the GPX Track:|Select the color the GPX tracks should get.  |
@@ -89,4 +90,6 @@ Here is an example of how to edit your config file:
 | | EXE file didn't work standalone. Should be fixed now.|
 |2.0 | Moved from dayrange to date selection. Added option to pull either a single track or one track per day of selected range.|
 |2.1 | Included checkbox to receive tracks within the selected timeframe for all tracker you own by one click. <br> Startdate is now saved in traccar2gpx.json. This can be convienient if you regulary prefer to start from a given date. The end date is always set to todays date. |
-|2.2 | Fixed some minor errors and improved error fetching to avoid breaking code. |
+|2.2 | Added Today button to ease life when one wants to get only todays tracks.|
+|2.3 | Fixed some minor problems.|
+|2.4 | Fixed problems with codepages. Thanks to pki791.|

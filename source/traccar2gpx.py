@@ -941,7 +941,7 @@ if __name__ == "__main__":
     # root = ThemedTk(theme='yaru')
     '''Setting the x and y position from where the menue should pop up'''
     root.geometry('+{}+{}'.format(winx,winy))  
-    root.title("Traccar2GPX - v2.3 (tested with Traccar v5.4 - v5.12)")
+    root.title("Traccar2GPX - v2.4 (tested with Traccar v5.4 - v5.12)")
     mainframe = ttk.Frame(root, borderwidth=5, relief="ridge", padding="5 5 5 5")
     mainframe.grid(column=0, row=0, sticky=(N, W, E, S))
     root.columnconfigure(0, weight=1)
