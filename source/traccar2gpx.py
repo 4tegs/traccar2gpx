@@ -44,9 +44,9 @@ import tkinter.messagebox as msgbox
 from datetime import datetime, timedelta
 from tkcalendar import Calendar
 
-
 import gpxpy
 import gpxpy.gpx
+import numpy as np
 
 import json
 
@@ -85,17 +85,18 @@ def quit_my_program():
     # days = (end_d - start_d).days +1
     widget_x, widget_y = mainframe.winfo_rootx(), mainframe.winfo_rooty()    
     config_dic.update({"winx" : widget_x}) 
-    config_dic.update({"winx" : widget_x}) 
     config_dic.update({"winy" : widget_y}) 
-    config_dic.update({"tracker_selected" : choice_tracker.current()}) 
     config_dic.update({"track_color" : color_choice.current()}) 
+    config_dic.update({"tracker_selected" : choice_tracker.current()}) 
     config_dic.update({"cleaning_track" : clean_Track.get()}) 
     config_dic.update({"statistics" : statistics.get()}) 
     config_dic.update({"all_tracker" : all_Tracker.get()}) 
     config_dic.update({"start_date" : start_datum.get()}) 
+    config_dic.update({"end_date" : end_datum.get()}) 
     # start_d = datetime.strptime(start_datum.get(), "%Y-%m-%d")
     # config_dic.update({"days_back" : (int(tage_choice.get())-1) })
-    # config_dic.update({"smooth" : smooth_loops_w.current()}) 
+    config_dic.update({"smooth" : smoothen_w.current()}) 
+    # config_dic.update({"smooth" : smoothen.get()}) 
 
     with open(my_config_file, "w", encoding='utf-8') as data:
         json.dump(config_dic, data, indent=4)    
@@ -410,6 +411,64 @@ def gpx_clean_track(gpx):
         return gpx
 
 # ...................................................
+# Smooth the Track
+# 2022 10 20
+# ...................................................
+def moving_average(data, window_size):
+    """Smooth the data using a moving average filter."""
+    return np.convolve(data, np.ones(window_size) / window_size, mode='valid')
+
+def gpx_smooth_track(gpx, window_size):   
+    '''
+    Smoothens the elevation graph.
+
+    ### Args: 
+    - Input gpx(parsed), int: smoothen runs
+
+    - Returns: gpx(reworked parsed) - now with more realistic elevation data
+
+    ### Methods:
+        - "Smooths" the elevation graph. Runs multiple times, based on users decision.
+    '''
+    if len(gpx.tracks) > 0:
+        # Extract the elevation values
+        elevations = []
+        timestamps = []
+        for track in gpx.tracks:
+            for segment in track.segments:
+                for point in segment.points:
+                    elevations.append(point.elevation)
+                    timestamps.append(point.time)
+        # Apply the moving average filter
+        smoothed_elevations = moving_average(elevations, window_size)
+        # Create a new GPX object with the smoothed elevation data
+        smoothed_gpx = gpxpy.gpx.GPX()
+        smoothed_track = gpxpy.gpx.GPXTrack()
+        smoothed_gpx.tracks.append(smoothed_track)
+        smoothed_segment = gpxpy.gpx.GPXTrackSegment()
+        smoothed_track.segments.append(smoothed_segment)
+
+        # Update the points with smoothed elevation values
+        for i in range(len(smoothed_elevations)):
+            new_point = gpxpy.gpx.GPXTrackPoint(
+                gpx.tracks[0].segments[0].points[i + window_size // 2].latitude,
+                gpx.tracks[0].segments[0].points[i + window_size // 2].longitude,
+                elevation=smoothed_elevations[i],
+                time=timestamps[i + window_size // 2]
+            )
+            smoothed_segment.points.append(new_point)
+        i = 0
+        for track in gpx.tracks:
+            smoothed_track = smoothed_gpx.tracks[i]
+            format = "%Y-%m-%d_"
+            name = track.name
+            smoothed_gpx.tracks[i].name = name
+        return smoothed_gpx
+    else:
+        error_message(8)
+
+
+# ...................................................
 # Attach a name to the track
 # 2022 10 20
 # ...................................................
@@ -651,8 +710,75 @@ if __name__ == "__main__":
         end_datum.set(datetime.now().strftime("%Y-%m-%d"))
         end_entry = ttk.Entry(mainframe, textvariable=end_datum, state="readonly")
         end_entry.grid(column=2,columnspan=3,  row=2, sticky=W)
+    
+    def select_yesterday_date():
+        now = datetime.now()
+        yesterday = now - timedelta(days=1)
+        start_datum.set(yesterday.strftime("%Y-%m-%d"))
+        # start_datum.set(datetime.now().strftime("%Y-%m-%d"))
+        start_entry = ttk.Entry(mainframe, textvariable=start_datum, state="readonly")
+        start_entry.grid(column=2,columnspan=3,  row=1, sticky=W)
+        end_datum.set(yesterday.strftime("%Y-%m-%d"))
+        end_entry = ttk.Entry(mainframe, textvariable=end_datum, state="readonly")
+        end_entry.grid(column=2,columnspan=3,  row=2, sticky=W)
 
-      
+    def select_this_week():
+        now = datetime.now()
+        start_of_week = now - timedelta(days=now.weekday())
+        start_datum.set(start_of_week.strftime("%Y-%m-%d"))
+        # start_datum.set(datetime.now().strftime("%Y-%m-%d"))
+        start_entry = ttk.Entry(mainframe, textvariable=start_datum, state="readonly")
+        start_entry.grid(column=2,columnspan=3,  row=1, sticky=W)
+        end_datum.set(now.strftime("%Y-%m-%d"))
+        end_entry = ttk.Entry(mainframe, textvariable=end_datum, state="readonly")
+        end_entry.grid(column=2,columnspan=3,  row=2, sticky=W)
+        
+    def select_last_week():
+        now = datetime.now()
+        start_of_this_week = now - timedelta(days=now.weekday())
+        start_of_last_week = start_of_this_week - timedelta(weeks=1)
+        end_of_last_week = start_of_this_week - timedelta(days=1)
+        start_datum.set(start_of_last_week.strftime("%Y-%m-%d"))
+        start_entry = ttk.Entry(mainframe, textvariable=start_datum, state="readonly")
+        start_entry.grid(column=2,columnspan=3,  row=1, sticky=W)
+        end_datum.set(end_of_last_week.strftime("%Y-%m-%d"))
+        end_entry = ttk.Entry(mainframe, textvariable=end_datum, state="readonly")
+        end_entry.grid(column=2,columnspan=3,  row=2, sticky=W)
+        
+    def select_this_month():
+        now = datetime.now()
+        start_of_this_month = datetime(now.year, now.month, 1)
+        start_datum.set(start_of_this_month.strftime("%Y-%m-%d"))
+        start_entry = ttk.Entry(mainframe, textvariable=start_datum, state="readonly")
+        start_entry.grid(column=2,columnspan=3,  row=1, sticky=W)
+        end_datum.set(now.strftime("%Y-%m-%d"))
+        end_entry = ttk.Entry(mainframe, textvariable=end_datum, state="readonly")
+        end_entry.grid(column=2,columnspan=3,  row=2, sticky=W)
+        
+    def select_last_month():
+        now = datetime.now()
+        # Calculate the first day of the current month
+        first_day_of_this_month = datetime(now.year, now.month, 1)
+        # Calculate the last day of the previous month
+        last_day_of_last_month = first_day_of_this_month - timedelta(days=1)
+        # Calculate the first day of the previous month
+        first_day_of_last_month = datetime(last_day_of_last_month.year, last_day_of_last_month.month, 1)
+        start_datum.set(first_day_of_last_month.strftime("%Y-%m-%d"))
+        start_entry = ttk.Entry(mainframe, textvariable=start_datum, state="readonly")
+        start_entry.grid(column=2,columnspan=3,  row=1, sticky=W)
+        end_datum.set(last_day_of_last_month.strftime("%Y-%m-%d"))
+        end_entry = ttk.Entry(mainframe, textvariable=end_datum, state="readonly")
+        end_entry.grid(column=2,columnspan=3,  row=2, sticky=W)
+        
+    def select_this_year():
+        now = datetime.now()
+        start_of_this_year = datetime(now.year, 1, 1)
+        start_datum.set(start_of_this_year.strftime("%Y-%m-%d"))
+        start_entry = ttk.Entry(mainframe, textvariable=start_datum, state="readonly")
+        start_entry.grid(column=2,columnspan=3,  row=1, sticky=W)
+        end_datum.set(now.strftime("%Y-%m-%d"))
+        end_entry = ttk.Entry(mainframe, textvariable=end_datum, state="readonly")
+        end_entry.grid(column=2,columnspan=3,  row=2, sticky=W)
 
     def get_one_traccar():
         '''Get One huge track from Traccar'''
@@ -792,10 +918,11 @@ if __name__ == "__main__":
                     # lines = gpx_statistics(gpx, lines)
                     statistic_dict = statistics_init()
                     statistic_dict = gpx_statistics(gpx, statistic_dict)
-                    
+                    smoothen = smoothen_w.current()
+                    if smoothen > gpx.get_track_points_no(): smoothen = 0
+                    # print(smoothen)
+                    if smoothen > 0: gpx = gpx_smooth_track(gpx, smoothen)
                     if track_cleaning: gpx = gpx_clean_track(gpx)
-                    # if smooth_loops > 0: gpx = gpx_smooth_track(gpx, smooth_loops)
-                    # gpx, new_gpx_fileName = gpx_set_new_trackname(gpx)
                     gpxdate = from_time[:10]
                     gpx, new_gpx_fileName = gpx_set_new_trackname(gpxdate, gpx)
                     gpx = gpx_set_new_header(gpx)
@@ -839,6 +966,7 @@ if __name__ == "__main__":
 
         style = ttk.Style()
         style.configure("Green.TLabel", foreground="green")
+        print("Done")
         ttk.Label(mainframe, text="Done!    ", style="Green.TLabel").grid(column=1, row=8, sticky="W")
     
     # ...........................................
@@ -905,9 +1033,9 @@ if __name__ == "__main__":
     if not x: config_dic.update({"statistics" : False})                                   # Init die Variable in der Config File
     # ................
     # Check for last Status of Smoothening Elevation data
-    # x = config_dic.get("smooth")
-    # if not x: config_dic.update({"smooth" : 0})                                   # Init die Variable in der Config File
-    # smooth_loops = config_dic.get("smooth")
+    x = config_dic.get("smooth")
+    if not x: config_dic.update({"smooth" : 0})                                   # Init die Variable in der Config File
+    smoothen = config_dic.get("smooth")
 
     # ................
     # Check for last Start Date set
@@ -915,6 +1043,13 @@ if __name__ == "__main__":
     start_date = (datetime.now().strftime("%Y-%m-%d"))
     if not x: config_dic.update({"start_date" : start_date})                                   # Init die Variable in der Config File
     start_date = config_dic.get("start_date")
+
+    # ................  	
+    # Check for last End date set
+    x = config_dic.get("end_date")
+    end_date = (datetime.now().strftime("%Y-%m-%d"))
+    if not x: config_dic.update({"end_date" : end_date})                                   # Init die Variable in der Config File
+    end_date = config_dic.get("end_date")
 
     # ................
     # Check for All Tracker Flag set
@@ -941,7 +1076,7 @@ if __name__ == "__main__":
     # root = ThemedTk(theme='yaru')
     '''Setting the x and y position from where the menue should pop up'''
     root.geometry('+{}+{}'.format(winx,winy))  
-    root.title("Traccar2GPX - v2.4 (tested with Traccar v5.4 - v6.0)")
+    root.title("Traccar2GPX - v2.5 (tested with Traccar v5.4 - v6.1)")
     mainframe = ttk.Frame(root, borderwidth=5, relief="ridge", padding="5 5 5 5")
     mainframe.grid(column=0, row=0, sticky=(N, W, E, S))
     root.columnconfigure(0, weight=1)
@@ -980,34 +1115,42 @@ if __name__ == "__main__":
     end_button = ttk.Button(mainframe, text='End Day:', command=select_end_date)
     end_button.grid(column=1,  row=2, sticky="E")
     end_datum = tk.StringVar()
-    end_datum.set(datetime.now().strftime("%Y-%m-%d"))
+    end_datum.set(end_date)
+    # end_datum.set(datetime.now().strftime("%Y-%m-%d"))
     end_entry = ttk.Entry(mainframe, textvariable=end_datum, state="readonly")
     end_entry.grid(column=2,columnspan=3,  row=2, sticky=W)
 
-    start_button = ttk.Button(mainframe, text='Today:', command=select_today_date)
-    start_button.grid(column=3,  row=2, sticky="WE")
-    # start_datum.set(datetime.now().strftime("%Y-%m-01"))
+    start_button = ttk.Button(mainframe, text='Today', command=select_today_date)
+    start_button.grid(column=1,  row=3, sticky="WE")
+    # start_button.focus()
+    
+    start_button = ttk.Button(mainframe, text='Yesterday', command=select_yesterday_date)
+    start_button.grid(column=2,  row=3, sticky="WE")
+    
+    start_button = ttk.Button(mainframe, text='This week', command=select_this_week)
+    start_button.grid(column=1,  row=4, sticky="WE")
 
+    start_button = ttk.Button(mainframe, text='Last week', command=select_last_week)
+    start_button.grid(column=2,  row=4, sticky="WE")
+
+    start_button = ttk.Button(mainframe, text='This month', command=select_this_month)
+    start_button.grid(column=1,  row=5, sticky="WE")
+
+    start_button = ttk.Button(mainframe, text='Last month', command=select_last_month)
+    start_button.grid(column=2,  row=5, sticky="WE")
+
+    start_button = ttk.Button(mainframe, text='This year', command=select_this_year)
+    start_button.grid(column=1,  row=6, sticky="WE")
 
     # ....................................................
     # Setzte das Auswahlmenü für den Tracker
     # ....................................................
-    ttk.Label(mainframe, text="Tracker:").grid(column=1, row=3, sticky="E")
+    ttk.Label(mainframe, text="Tracker:").grid(column=3, row=1, sticky="E")
     choice_tracker = ttk.Combobox(mainframe)
     choice_tracker['values'] = my_tracker_names
     choice_tracker.current(tracker_selected)                    # tracker_selected Wurde weiter oben in der Initialisierungsektion der Config Presets gesetzt
-    choice_tracker.grid(column=2,columnspan=3,  row=3, sticky=W)
+    choice_tracker.grid(column=4,columnspan=3,  row=1, sticky=W)
     choice_tracker.state(["readonly"])
-
-    # ....................................................
-    # Setzte das Auswahlmenü für Alle Tracks!
-    # ....................................................
-    # ttk.Label(mainframe, text="All Tracks at once:").grid(column=4, row=3, sticky=W)
-    all_Tracker = BooleanVar(value=True)                                    # Zwingend die init einer TkInter BooleanVar machen!
-    all_Tracker.set(config_dic.get("all_tracker"))                       # Die BoolenVar wird mit set und get behandelt.
-    check_all_Tracker = ttk.Checkbutton(mainframe,  variable=all_Tracker, text="All Tracker at once")
-    check_all_Tracker.grid(column=3, row=3, sticky="W")
-    toggle_tracker_selection()                                              # stelle sicher, dass der letzte Status gesetzt wird.
 
     # ....................................................
     # Setzte das Auswahlmenü für die Farben des Tracks
@@ -1030,46 +1173,69 @@ if __name__ == "__main__":
         'Black'
     )
     ttk.Label(mainframe, text="Color of GPX Track:").grid(
-        column=1, row=4, sticky=E)
+        column=3, row=2, sticky=E)
     color_choice = ttk.Combobox(mainframe)
     color_choice['values'] = TrackColor
     color_choice.current(track_color_set)                   # track_color Wurde weiter oben in der Initialisierungsektion der Config Presets gesetzt
-    color_choice.grid(column=2,columnspan=3,  row=4, sticky="W")
+    color_choice.grid(column=4,columnspan=3,  row=2, sticky="W")
     color_choice.state(['readonly'])
 
+    # ....................................................
+    # Setzte das Auswahlmenü für Alle Tracks!
+    # ....................................................
+    ttk.Label(mainframe, text="All Tracker at once:").grid(column=3, row=3, sticky=E)
+    all_Tracker = BooleanVar(value=True)                                    # Zwingend die init einer TkInter BooleanVar machen!
+    all_Tracker.set(config_dic.get("all_tracker"))                       # Die BoolenVar wird mit set und get behandelt.
+    check_all_Tracker = ttk.Checkbutton(mainframe,  variable=all_Tracker)
+    # check_all_Tracker = ttk.Checkbutton(mainframe,  variable=all_Tracker, text="All Tracker at once")
+    check_all_Tracker.grid(column=4, row=3, sticky="W")
+    toggle_tracker_selection()                                              # stelle sicher, dass der letzte Status gesetzt wird.
 
     # ....................................................
     # Setzte das Auswahlmenü für Cleaning Track
     # ....................................................
-    ttk.Label(mainframe, text="Clean Track:").grid(column=1, row=5, sticky=E)
+    ttk.Label(mainframe, text="Clean Track:").grid(column=3, row=4, sticky=E)
     clean_Track = BooleanVar(value=True)                                    # Zwingend die init einer TkInter BooleanVar machen!
     clean_Track.set(config_dic.get("cleaning_track"))                       # Die BoolenVar wird mit set und get behandelt.
     check_clean_Track = ttk.Checkbutton(mainframe,  variable=clean_Track)
-    check_clean_Track.grid(column=2, row=5, sticky="W")
+    check_clean_Track.grid(column=4, row=4, sticky="W")
 
     # ....................................................
     # Setzte das Auswahlmenü für Statistics y/n
     # ....................................................
-    ttk.Label(mainframe, text="Statistics").grid(column=1, row=6, sticky=E)
+    ttk.Label(mainframe, text="Statistics").grid(column=3, row=5, sticky=E)
     statistics = BooleanVar(value=True)                                    # Zwingend die init einer TkInter BooleanVar machen!
     statistics.set(config_dic.get("statistics"))                           # Die BoolenVar wird mit set und get behandelt.
     check_statistics = ttk.Checkbutton(mainframe,  variable=statistics)
-    check_statistics.grid(column=2, row=6, sticky="W")
+    check_statistics.grid(column=4, row=5, sticky="W")
+
+    # ....................................................
+    # Setzte das Auswahlmenü für Smoothening der Elevation
+    # ....................................................
+    smoothRange = []
+    for x in range(0, 60): smoothRange.append(x)
+    ttk.Label(mainframe, text="Smooth Elevation data:").grid(column=3, row=6, sticky=E)
+    smoothen_w = ttk.Combobox(mainframe)
+    smoothen_w['values'] = smoothRange
+    smoothen_w.current(smoothen)
+    smoothen_w.grid(column=4, row=6, sticky="W")
+    smoothen_w.state(['readonly'])
+    # smooth_loops.state(['disabled'])
 
     # ....................................................
     # Setze die "Arbeitsknöpfe"
     # ....................................................
 
-    one_track_button = ttk.Button(mainframe, text='Get ONE GPX Track', command=get_one_traccar)
-    one_track_button.grid(column=1,  row=7, sticky="EW")
+    work_button = ttk.Button(mainframe, text='Get DAILY GPX Track', command=get_daily_traccar)
+    work_button.grid(column=3,  row=7, sticky="EW")
     # work_button.focus()
 
-    work_button = ttk.Button(mainframe, text='Get DAILY GPX Track', command=get_daily_traccar)
-    work_button.grid(column=2,  row=7, sticky="EW")
+    one_track_button = ttk.Button(mainframe, text='Get ONE GPX Track', command=get_one_traccar)
+    one_track_button.grid(column=4,  row=7  , sticky="EW")
     # work_button.focus()
 
     quitbutton = ttk.Button(mainframe, text='Exit', command=quit_my_program)
-    quitbutton.grid(column=3, row=7, sticky="EW")
+    quitbutton.grid(column=3, row=8, columnspan=2,  sticky="EW")
 
     for child in mainframe.winfo_children():
         child.grid_configure(padx=5, pady=5) 

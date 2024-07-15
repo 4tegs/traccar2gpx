@@ -36,7 +36,7 @@ While Traccars export option is pretty good, I have different needs. Let's compa
 |Track can be used for geotagging  | - | x |
 
 ## Compatibility
-This version has been tested with Traccar 5.4 - 6.0
+This version has been tested with Traccar 5.4 - 6.1
 ## Configuration file
 
 traccar2gpx is configured by a sidecar configuration file. If you don't edit your config file with the needed credentials, traccar2gpx fails to run with an error exception.  
@@ -66,11 +66,12 @@ Here is an example of how to edit your config file:
 --- | --- |
 |Start Day:|Select the first day you want to pull tracks from Traccar. If you just want today, set todays date.
 |End Day:|Select the last day. If you just want today, set todays date.
-|Today:|Set Satrt Day and End Day to todays date.
+|Today: ... This year|Set Start Day and End Day to selected range of dates.
 |Tracker:|Select the tracker you want to pull the tracks from.  |
 |All Tracker at once:|Check the box if you want the tracks of all tracker you own within the selected timeframe. You still can receive the tracks as "daily tracks" or as "one track per timefrime".  |
 |Color of the GPX Track:|Select the color the GPX tracks should get.  |
 |Clean track: |This is somehow tricky. It will delete all waypoints from the track that had no motion or motion is < 2,5km/H. It will delete the track if there are less then 10 trackpoints in total. Don't use this option if you use the track for e.g. Geotagging your pictures as no motion trackpoints can be of value.  |
+|Smooth Elevation data: | The altitude data from a GPS is somewhat inaccurate. The contour line therefore shows far too many altitude deviations. This can be remedied to a certain extent by smoothing the contour line. <br/>For the degree of smoothing you have to play with the setting yourself, as factors such as the GPS device itself, the frequency of points etc. play a role. <br/>With my Teltonika FMM920 and 70m / point, 30 is a good choice to eliminate the extreme swings.
 |Get ONE GPX Track:|All trackdata from "Start Day" to "End Day" will be pulled into one single track. Usage example: Use the track for geotagging all pictures from a vacation. The tracks name shows the start and end date + tracker name. If there is no file, there wasn't enough trackdata! |
 |Get DAILY GPX Track:|One GPX track per day range selected. Each track has the days and tracker name as file- and trackname. If there is no file, there wasn't enough trackdata! |
 
@@ -93,3 +94,4 @@ Here is an example of how to edit your config file:
 |2.2 | Added Today button to ease life when one wants to get only todays tracks.|
 |2.3 | Fixed some minor problems.|
 |2.4 | Fixed problems with codepages. Thanks to pki791.|
+|2.5 | Reestablished smoothening of elevation data. <br/> Implemented pre-selection of more date ranges.|
