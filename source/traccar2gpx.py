@@ -175,6 +175,10 @@ def error_message(error):
             ttk.Label(mainframe, text="Are you sure that your root_url points to the right server?").grid(
                 column=1, row=2, sticky=W)
 
+    if error == 9:
+                ttk.Label(mainframe, text="Your settings for smoothing the track includes more then 50% points of the trackspoints.").grid(
+                    column=1, row=1, sticky=W)
+
 
     for child in mainframe.winfo_children():
         child.grid_configure(padx=5, pady=5)
@@ -412,7 +416,7 @@ def gpx_clean_track(gpx):
 
 # ...................................................
 # Smooth the Track
-# 2022 10 20
+# 2024 07 19
 # ...................................................
 def moving_average(data, window_size):
     """Smooth the data using a moving average filter."""
@@ -434,38 +438,71 @@ def gpx_smooth_track(gpx, window_size):
         # Extract the elevation values
         elevations = []
         timestamps = []
-        for track in gpx.tracks:
+        lati = []
+        longi = []
+        for track in gpx.tracks:                # pulling data from Traccar this is only one track and one segment
             for segment in track.segments:
                 for point in segment.points:
                     elevations.append(point.elevation)
                     timestamps.append(point.time)
-        # Apply the moving average filter
-        smoothed_elevations = moving_average(elevations, window_size)
-        # Create a new GPX object with the smoothed elevation data
-        smoothed_gpx = gpxpy.gpx.GPX()
-        smoothed_track = gpxpy.gpx.GPXTrack()
-        smoothed_gpx.tracks.append(smoothed_track)
-        smoothed_segment = gpxpy.gpx.GPXTrackSegment()
-        smoothed_track.segments.append(smoothed_segment)
+                    lati.append(point.latitude)
+                    longi.append(point.longitude)
+        
+        if len(elevations) > window_size*2:
+            # Apply the moving average filter
+            smoothed_elevations = moving_average(elevations, window_size)
+            # Create a new GPX object with the smoothed elevation data
+            smoothed_gpx = gpxpy.gpx.GPX()
+            smoothed_track = gpxpy.gpx.GPXTrack()
+            smoothed_gpx.tracks.append(smoothed_track)
+            smoothed_segment = gpxpy.gpx.GPXTrackSegment()
+            smoothed_track.segments.append(smoothed_segment) # up to here we have built the "framework only - no data"
 
-        # Update the points with smoothed elevation values
-        for i in range(len(smoothed_elevations)):
-            new_point = gpxpy.gpx.GPXTrackPoint(
-                gpx.tracks[0].segments[0].points[i + window_size // 2].latitude,
-                gpx.tracks[0].segments[0].points[i + window_size // 2].longitude,
-                elevation=smoothed_elevations[i],
-                time=timestamps[i + window_size // 2]
-            )
-            smoothed_segment.points.append(new_point)
-        i = 0
-        for track in gpx.tracks:
+            # Update the points with smoothed elevation values
+            # for i in range(len(smoothed_elevations)):
+            #     new_point = gpxpy.gpx.GPXTrackPoint(
+            #         gpx.tracks[0].segments[0].points[i + window_size // 2].latitude,
+            #         gpx.tracks[0].segments[0].points[i + window_size // 2].longitude,
+            #         time=timestamps[i + window_size // 2],
+            #         elevation=smoothed_elevations[i ]
+            #     )
+            #     smoothed_segment.points.append(new_point)
+            
+            j = 0
+            for i in range(len(elevations)):
+                if i < window_size + window_size//2 or i > (len(elevations) + window_size + window_size//2):
+                    new_point = gpxpy.gpx.GPXTrackPoint(
+                        gpx.tracks[0].segments[0].points[i].latitude,
+                        gpx.tracks[0].segments[0].points[i].longitude,
+                        gpx.tracks[0].segments[0].points[i].elevation,
+                        gpx.tracks[0].segments[0].points[i].time
+                    )    
+                else:
+                    new_point = gpxpy.gpx.GPXTrackPoint(
+                        gpx.tracks[0].segments[0].points[i].latitude,
+                        gpx.tracks[0].segments[0].points[i].longitude,
+                        elevation=round(smoothed_elevations[j],2),
+                        time = gpx.tracks[0].segments[0].points[i].time,
+                        # time = timestamps[i]
+                    )    
+                    j += 1
+                    # print(new_point)
+                smoothed_segment.points.append(new_point)
+    
+            i = 0
+            # for track in gpx.tracks:
             smoothed_track = smoothed_gpx.tracks[i]
             format = "%Y-%m-%d_"
             name = track.name
-            smoothed_gpx.tracks[i].name = name
-        return smoothed_gpx
+            smoothed_gpx.tracks[0].name = name
+            # print(str(len(elevations)))
+            return smoothed_gpx
+        else:
+            # error_message(9)
+            print("Track contains " + str(len(elevations)) + " and is therefore shorter then " + str(window_size*2) + ". Use original track without smoothening.")
+            return gpx                  # return what has been called as nothing has been done
     else:
-        error_message(8)
+        return gpx                      # return what has been called as nothing has been done
 
 
 # ...................................................
@@ -539,7 +576,6 @@ def gpx_set_correct_timeformat(gpx):
                     format = "%Y-%m-%d %H:%M:%S"
                     pt1 = datetime.strptime(pt, format)
                     point.time=pt1
-        
     return gpx
 
 # ...................................................
@@ -966,7 +1002,7 @@ if __name__ == "__main__":
 
         style = ttk.Style()
         style.configure("Green.TLabel", foreground="green")
-        print("Done")
+        # print("Done")
         ttk.Label(mainframe, text="Done!    ", style="Green.TLabel").grid(column=1, row=8, sticky="W")
     
     # ...........................................
