@@ -59,7 +59,7 @@ Here is an example of how to edit your config file:
     
 ## Use of traccar2gpx
 
-![traccar2gpx menue](https://motorradtouren.de/traccar2gpx.jpg "traccar2gpx menue options")
+![traccar2gpx menue](https://motorradtouren.de/traccar2gpx_2_5.jpg "traccar2gpx menue options")
 
 
 |Option |Explanation |
