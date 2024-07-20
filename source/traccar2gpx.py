@@ -418,92 +418,22 @@ def gpx_clean_track(gpx):
 # Smooth the Track
 # 2024 07 19
 # ...................................................
-def moving_average(data, window_size):
-    """Smooth the data using a moving average filter."""
-    return np.convolve(data, np.ones(window_size) / window_size, mode='valid')
+def gpx_smooth_track(gpx, window_size):
+    ''' 
+    Smoothing the gpx track height data window_size times.
+    ### Args:
+    - Input: gpx(parsed)
 
-def gpx_smooth_track(gpx, window_size):   
-    '''
-    Smoothens the elevation graph.
-
-    ### Args: 
-    - Input gpx(parsed), int: smoothen runs
-
-    - Returns: gpx(reworked parsed) - now with more realistic elevation data
-
-    ### Methods:
-        - "Smooths" the elevation graph. Runs multiple times, based on users decision.
+     - Returns: gpx(reworked parsed)
+    
+    Uses not published gpxpy function
     '''
     if len(gpx.tracks) > 0:
-        # Extract the elevation values
-        elevations = []
-        timestamps = []
-        lati = []
-        longi = []
-        for track in gpx.tracks:                # pulling data from Traccar this is only one track and one segment
-            for segment in track.segments:
-                for point in segment.points:
-                    elevations.append(point.elevation)
-                    timestamps.append(point.time)
-                    lati.append(point.latitude)
-                    longi.append(point.longitude)
-        
-        if len(elevations) > window_size*2:
-            # Apply the moving average filter
-            smoothed_elevations = moving_average(elevations, window_size)
-            # Create a new GPX object with the smoothed elevation data
-            smoothed_gpx = gpxpy.gpx.GPX()
-            smoothed_track = gpxpy.gpx.GPXTrack()
-            smoothed_gpx.tracks.append(smoothed_track)
-            smoothed_segment = gpxpy.gpx.GPXTrackSegment()
-            smoothed_track.segments.append(smoothed_segment) # up to here we have built the "framework only - no data"
-
-            # Update the points with smoothed elevation values
-            # for i in range(len(smoothed_elevations)):
-            #     new_point = gpxpy.gpx.GPXTrackPoint(
-            #         gpx.tracks[0].segments[0].points[i + window_size // 2].latitude,
-            #         gpx.tracks[0].segments[0].points[i + window_size // 2].longitude,
-            #         time=timestamps[i + window_size // 2],
-            #         elevation=smoothed_elevations[i ]
-            #     )
-            #     smoothed_segment.points.append(new_point)
-            
-            j = 0
-            for i in range(len(elevations)):
-                if i < window_size + window_size//2 or i > (len(elevations) + window_size + window_size//2):
-                    new_point = gpxpy.gpx.GPXTrackPoint(
-                        gpx.tracks[0].segments[0].points[i].latitude,
-                        gpx.tracks[0].segments[0].points[i].longitude,
-                        gpx.tracks[0].segments[0].points[i].elevation,
-                        gpx.tracks[0].segments[0].points[i].time
-                    )    
-                else:
-                    new_point = gpxpy.gpx.GPXTrackPoint(
-                        gpx.tracks[0].segments[0].points[i].latitude,
-                        gpx.tracks[0].segments[0].points[i].longitude,
-                        elevation=round(smoothed_elevations[j],2),
-                        time = gpx.tracks[0].segments[0].points[i].time,
-                        # time = timestamps[i]
-                    )    
-                    j += 1
-                    # print(new_point)
-                smoothed_segment.points.append(new_point)
-    
-            i = 0
-            # for track in gpx.tracks:
-            smoothed_track = smoothed_gpx.tracks[i]
-            format = "%Y-%m-%d_"
-            name = track.name
-            smoothed_gpx.tracks[0].name = name
-            # print(str(len(elevations)))
-            return smoothed_gpx
-        else:
-            # error_message(9)
-            print("Track contains " + str(len(elevations)) + " and is therefore shorter then " + str(window_size*2) + ". Use original track without smoothening.")
-            return gpx                  # return what has been called as nothing has been done
-    else:
-        return gpx                      # return what has been called as nothing has been done
-
+            for i in range(window_size):
+                for track in gpx.tracks:                # pulling data from Traccar this is only one track and one segment
+                    for segment in track.segments:
+                        segment.smooth( vertical=True, horizontal=False, remove_extremes=False) # make sure only one parameter is set! 
+    return gpx
 
 # ...................................................
 # Attach a name to the track
@@ -835,8 +765,13 @@ if __name__ == "__main__":
             if gpx.get_track_points_no() > 0:
                 statistic_dict = statistics_init()
                 statistic_dict = gpx_statistics(gpx, statistic_dict)
+
+                smoothen = smoothen_w.current()
+                if smoothen > gpx.get_track_points_no(): smoothen = 0
+                if smoothen > 0: gpx = gpx_smooth_track(gpx, smoothen)
                 
                 if track_cleaning: gpx = gpx_clean_track(gpx)
+
                 gpxdate = from_time[:10] + "-" + to_time[:10]
                 gpx, new_gpx_fileName = gpx_set_new_trackname(gpxdate, gpx)
                 gpx = gpx_set_new_header(gpx)
@@ -956,9 +891,8 @@ if __name__ == "__main__":
                     statistic_dict = gpx_statistics(gpx, statistic_dict)
                     smoothen = smoothen_w.current()
                     if smoothen > gpx.get_track_points_no(): smoothen = 0
-                    # print(smoothen)
                     if smoothen > 0: gpx = gpx_smooth_track(gpx, smoothen)
-                    if track_cleaning: gpx = gpx_clean_track(gpx)
+                    if track_cleaning: gpx = gpx_clean_track(gpx) 
                     gpxdate = from_time[:10]
                     gpx, new_gpx_fileName = gpx_set_new_trackname(gpxdate, gpx)
                     gpx = gpx_set_new_header(gpx)
