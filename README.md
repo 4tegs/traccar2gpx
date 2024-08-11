@@ -36,7 +36,7 @@ While Traccars export option is pretty good, I have different needs. Let's compa
 |Track can be used for geotagging  | - | x |
 
 ## Compatibility
-This version has been tested with Traccar 5.4 - 6.1
+This version has been tested with Traccar 5.4 - 6.4
 ## Configuration file
 
 traccar2gpx is configured by a sidecar configuration file. If you don't edit your config file with the needed credentials, traccar2gpx fails to run with an error exception.  
@@ -94,4 +94,4 @@ Here is an example of how to edit your config file:
 |2.2 | Added Today button to ease life when one wants to get only todays tracks.|
 |2.3 | Fixed some minor problems.|
 |2.4 | Fixed problems with codepages. Thanks to pki791.|
-|2.5 | Reestablished smoothening of elevation data. <br/> Implemented pre-selection of more date ranges.|
+|2.5 | Reestablished smoothening of elevation data. <br/> Implemented pre-selection of more date ranges.<br/> Tested with Traccar version 6.4 |
