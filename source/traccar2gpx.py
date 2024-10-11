@@ -13,8 +13,11 @@
 #   2023 03 27      Upgraded to Python 3.11
 #                   Updated to Selection of Dates instead of days backward.
 #                   Added option to pull either a single track or one track per day of selected range.
-#   2023 04 13      Remebers last Start Date set via JSON
+#   2023 04 13      Remembers last Start Date set via JSON
 #   2023 04 16      Now having the choice to selec either a single tracker or all tracker at once
+#   2024 10 06      Many updates: 
+#                       * Now with choices to select date range
+#                       * Within the config JSON one can pre-set options per tracker. Details see Readme
 # 
 # ##########################################################################################
 
@@ -86,7 +89,17 @@ def quit_my_program():
     widget_x, widget_y = mainframe.winfo_rootx(), mainframe.winfo_rooty()    
     config_dic.update({"winx" : widget_x}) 
     config_dic.update({"winy" : widget_y}) 
-    config_dic.update({"track_color" : color_choice.current()}) 
+    tracker_selected = choice_tracker.current()
+    # If the tracker is not listed as one of the individual trackers in the config json
+    # save the color as the standard
+    x = config_dic.get(str(tracker_selected))
+    if not x:
+        config_dic.update({"track_color" : color_choice.current()}) 
+    # if the last choice was to get all trackers at once, 
+    # use the default color to save it 
+    if all_tracker:
+        config_dic.update({"track_color" : color_choice.current()}) 
+    # if none of the above was true, don't touch the existing color!b    
     config_dic.update({"tracker_selected" : choice_tracker.current()}) 
     config_dic.update({"cleaning_track" : clean_Track.get()}) 
     config_dic.update({"statistics" : statistics.get()}) 
@@ -395,7 +408,6 @@ def gpx_clean_track(gpx):
                 i = 0
                 kill = False
                 while i < (segment.get_points_no() -2):         # remove track points with speed < 0.5
-                    # print(segment)
                     lat1 = segment.points[i].latitude
                     lon1 = segment.points[i].longitude
                     lat2 = segment.points[i+1].latitude
@@ -796,6 +808,7 @@ if __name__ == "__main__":
                 
             gpx_file.close()     
             delete_file(gpx_file_name)
+
     
         style = ttk.Style()
         style.configure("Red.TLabel", foreground="red")
@@ -825,11 +838,29 @@ if __name__ == "__main__":
 
         # Jetzt frage ich ab, ob nur der eine Tracker abgefragt wird oder alle
         if all_Tracker.get():
+            a= clean_Track.get()
+            b= statistics.get()
+            c = smoothen_w.current()
+            d = color_choice.current()
             i = 0
             tracker_loops = my_tracker_amount
             for i in range(tracker_loops):
                 tracker_id = my_tracker_id[i]
+                x = config_dic.get( my_tracker_names[i])
+                if x: 
+                    try: color_choice.current(x.get("track_color"))
+                    except: color_choice.current(d)
+                    try: clean_Track.set(x.get("cleaning_track"))
+                    except: clean_Track.set(a)
+                    try: statistics.set(x.get("statistics"))     
+                    except: statistics.set(b)
+                    try: smoothen_w.current(x.get("smooth"))
+                    except: smoothen_w.current(c)  
                 get_my_track()
+            color_choice.current(d)
+            clean_Track.set(a)
+            statistics.set(b) 
+            smoothen_w.current(c)  
         else:
             tracker_id = my_tracker_id[my_tracker_names.index(choice_tracker.get())]
             get_my_track()
@@ -886,7 +917,6 @@ if __name__ == "__main__":
                 gpx_file = open(gpx_file_name, 'r', encoding='utf-8')     # Lese die GPX File ein als das was sie ist: Text
                 gpx = gpxpy.parse(gpx_file)             # Jetzt mache ein GPX/XML aus dem Text
                 if gpx.get_track_points_no() > 0:
-                    # lines = gpx_statistics(gpx, lines)
                     statistic_dict = statistics_init()
                     statistic_dict = gpx_statistics(gpx, statistic_dict)
                     smoothen = smoothen_w.current()
@@ -899,7 +929,6 @@ if __name__ == "__main__":
                     gpx = gpx_set_correct_timeformat(gpx)
                     gpx = gpx_set_color(gpx, trackcolor) 
 
-                    # lines = gpx_statistics(gpx, lines) 
                     statistic_dict = gpx_statistics(gpx, statistic_dict)
                     lines = gpx_statistics_print(statistic_dict, lines)
                     # ...........................................
@@ -927,16 +956,34 @@ if __name__ == "__main__":
         if all_Tracker.get():
             i = 0
             tracker_loops = my_tracker_amount
+            d = color_choice.current()
+            a= clean_Track.get()
+            b= statistics.get()
+            c = smoothen_w.current()
             for i in range(tracker_loops):
                 tracker_id = my_tracker_id[i]
+                x = config_dic.get( my_tracker_names[i])
+                if x: 
+                    try: color_choice.current(x.get("track_color"))
+                    except: color_choice.current(d)
+                    try: clean_Track.set(x.get("cleaning_track"))
+                    except: clean_Track.set(a)
+                    try: statistics.set(x.get("statistics"))     
+                    except: statistics.set(b)
+                    try: smoothen_w.current(x.get("smooth"))
+                    except: smoothen_w.current(c) 
                 get_my_track()
+            color_choice.current(d)
+            clean_Track.set(a)
+            statistics.set(b)     
+            smoothen_w.current(c)
         else:
             tracker_id = my_tracker_id[my_tracker_names.index(choice_tracker.get())]
             get_my_track()
+        
 
         style = ttk.Style()
         style.configure("Green.TLabel", foreground="green")
-        # print("Done")
         ttk.Label(mainframe, text="Done!    ", style="Green.TLabel").grid(column=1, row=8, sticky="W")
     
     # ...........................................
@@ -948,8 +995,71 @@ if __name__ == "__main__":
     def toggle_tracker_selection():
         if all_Tracker.get():
             choice_tracker.state(["disabled"])
+            all_tracker = True
+            track_color_set  = config_dic.get("track_color")
+            # color_choice
+            try: 
+                color_choice.current(track_color_set)
+            except:
+                print("Pass im Toggle AllTracker")
+                pass
         else:
             choice_tracker.state(["!disabled"])
+            tracker_selected = choice_tracker.current()
+            d = color_choice.current()
+            a= clean_Track.get()
+            b= statistics.get()
+            c = smoothen_w.current()
+            x = config_dic.get( my_tracker_names[tracker_selected])
+            if x: 
+                try: track_color_set = x.get("track_color")
+                except: track_color_set = d
+                try: color_choice.current(x.get("track_color"))
+                except: color_choice.current(d)
+                try: clean_Track.set(x.get("cleaning_track"))
+                except: clean_Track.set(a)
+                try: statistics.set(x.get("statistics"))     
+                except: statistics.set(b)
+                try: smoothen_w.current(x.get("smooth"))
+                except: smoothen_w.current(c) 
+
+                # color_choice.current(track_color_set)
+                # clean_Track.set(x.get("cleaning_track"))
+                # statistics.set(x.get("statistics"))     
+                # smoothen_w.current(x.get("smooth"))
+            all_tracker = False 
+    # ...........................................
+    # Sobald der Tracker im Menü geändert wird, muss
+    # auch die Farbe dazu abgefragt werden.
+    # ...........................................
+    def auswahl_geaendert(event):
+        tracker_selected = choice_tracker.current()
+        d = color_choice.current()
+        a= clean_Track.get()
+        b= statistics.get()
+        c = smoothen_w.current()
+        x = config_dic.get( my_tracker_names[tracker_selected])
+        if x: 
+            # color_choice.current(x.get("track_color"))
+            # clean_Track.set(x.get("cleaning_track"))
+            # statistics.set(x.get("statistics"))     
+            # smoothen_w.current(x.get("smooth"))
+            try: track_color_set = x.get("track_color")
+            except: track_color_set = d
+            try: color_choice.current(x.get("track_color"))
+            except: color_choice.current(d)
+            try: clean_Track.set(x.get("cleaning_track"))
+            except: clean_Track.set(a)
+            try: statistics.set(x.get("statistics"))     
+            except: statistics.set(b)
+            try: smoothen_w.current(x.get("smooth"))
+            except: smoothen_w.current(c) 
+
+        else:
+            track_color_set  = config_dic.get("track_color")
+            clean_Track.set(config_dic.get("cleaning_track"))                       # Die BoolenVar wird mit set und get behandelt.
+            statistics.set(config_dict.get("statistics"))     
+            smoothen_w.current(config_dict.get("smooth"))
 
     # ....................................................
     # Setzte deine Variablen
@@ -1046,7 +1156,7 @@ if __name__ == "__main__":
     # root = ThemedTk(theme='yaru')
     '''Setting the x and y position from where the menue should pop up'''
     root.geometry('+{}+{}'.format(winx,winy))  
-    root.title("Traccar2GPX - v2.5 (tested with Traccar v5.4 - v6.4)")
+    root.title("Traccar2GPX - v2.6 (tested with Traccar v5.4 - v6.4)")
     mainframe = ttk.Frame(root, borderwidth=5, relief="ridge", padding="5 5 5 5")
     mainframe.grid(column=0, row=0, sticky=(N, W, E, S))
     root.columnconfigure(0, weight=1)
@@ -1113,16 +1223,6 @@ if __name__ == "__main__":
     start_button.grid(column=1,  row=6, sticky="WE")
 
     # ....................................................
-    # Setzte das Auswahlmenü für den Tracker
-    # ....................................................
-    ttk.Label(mainframe, text="Tracker:").grid(column=3, row=1, sticky="E")
-    choice_tracker = ttk.Combobox(mainframe)
-    choice_tracker['values'] = my_tracker_names
-    choice_tracker.current(tracker_selected)                    # tracker_selected Wurde weiter oben in der Initialisierungsektion der Config Presets gesetzt
-    choice_tracker.grid(column=4,columnspan=3,  row=1, sticky=W)
-    choice_tracker.state(["readonly"])
-
-    # ....................................................
     # Setzte das Auswahlmenü für die Farben des Tracks
     # ....................................................
     TrackColor = (
@@ -1146,20 +1246,28 @@ if __name__ == "__main__":
         column=3, row=2, sticky=E)
     color_choice = ttk.Combobox(mainframe)
     color_choice['values'] = TrackColor
+    # Here we look for the individual set color per tracker
+    if not all_tracker:
+        # x = config_dic.get(str(tracker_selected))
+        # tracker_id = my_tracker_id[tracker_selected]
+        x = config_dic.get( my_tracker_names[tracker_selected])
+        if x: 
+            track_color_set = x.get("track_color")
+
     color_choice.current(track_color_set)                   # track_color Wurde weiter oben in der Initialisierungsektion der Config Presets gesetzt
     color_choice.grid(column=4,columnspan=3,  row=2, sticky="W")
     color_choice.state(['readonly'])
 
     # ....................................................
-    # Setzte das Auswahlmenü für Alle Tracks!
+    # Setzte das Auswahlmenü für den Tracker
     # ....................................................
-    ttk.Label(mainframe, text="All Tracker at once:").grid(column=3, row=3, sticky=E)
-    all_Tracker = BooleanVar(value=True)                                    # Zwingend die init einer TkInter BooleanVar machen!
-    all_Tracker.set(config_dic.get("all_tracker"))                       # Die BoolenVar wird mit set und get behandelt.
-    check_all_Tracker = ttk.Checkbutton(mainframe,  variable=all_Tracker)
-    # check_all_Tracker = ttk.Checkbutton(mainframe,  variable=all_Tracker, text="All Tracker at once")
-    check_all_Tracker.grid(column=4, row=3, sticky="W")
-    toggle_tracker_selection()                                              # stelle sicher, dass der letzte Status gesetzt wird.
+    ttk.Label(mainframe, text="Tracker:").grid(column=3, row=1, sticky="E")
+    choice_tracker = ttk.Combobox(mainframe)
+    choice_tracker['values'] = my_tracker_names
+    choice_tracker.current(tracker_selected)                    # tracker_selected Wurde weiter oben in der Initialisierungsektion der Config Presets gesetzt
+    choice_tracker.grid(column=4,columnspan=3,  row=1, sticky=W)
+    choice_tracker.state(["readonly"])
+    choice_tracker.bind("<<ComboboxSelected>>", auswahl_geaendert)
 
     # ....................................................
     # Setzte das Auswahlmenü für Cleaning Track
@@ -1193,9 +1301,20 @@ if __name__ == "__main__":
     # smooth_loops.state(['disabled'])
 
     # ....................................................
+    # Setzte das Auswahlmenü für Alle Tracks!
+    # ....................................................
+    ttk.Label(mainframe, text="All Tracker at once:").grid(column=3, row=3, sticky=E)
+    all_Tracker = BooleanVar(value=True)                                    # Zwingend die init einer TkInter BooleanVar machen!
+    all_Tracker.set(config_dic.get("all_tracker"))                       # Die BoolenVar wird mit set und get behandelt.
+    all_tracker = config_dic.get("all_tracker")
+
+    check_all_Tracker = ttk.Checkbutton(mainframe,  variable=all_Tracker)
+    check_all_Tracker.grid(column=4, row=3, sticky="W")
+    toggle_tracker_selection()                                              # stelle sicher, dass der letzte Status gesetzt wird.
+
+    # ....................................................
     # Setze die "Arbeitsknöpfe"
     # ....................................................
-
     work_button = ttk.Button(mainframe, text='Get DAILY GPX Track', command=get_daily_traccar)
     work_button.grid(column=3,  row=7, sticky="EW")
     # work_button.focus()

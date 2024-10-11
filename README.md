@@ -49,12 +49,53 @@ Here is an example of how to edit your config file:
     "password": "your_password"
 }
 ```
+### Pre-set options for specific trackers
+```json
+    {
+    "root_url": "your_url:port",
+    "email": "your_email_2_access_traccar_server",
+    "password": "your_password",
+
+    "TrackerName": {
+        "track_color": 11,
+        "cleaning_track": false,
+        "statistics": true,
+        "smooth": 5
+    },
+    .....
+
+```
+
+Within the configuration file one may add pre-sets for specific trackers. The individual section starts with the exact tracker name as its defined / displayed in Traccar.<br/>After that, one may add exactly the shown parameters: 
+
+* track_color: One of the colors: 
+    *   0 = Magenta
+    *   1 = Cyan
+    *   2 = Green 
+    *   3 = Red
+    *   4 = Blue 
+    *   5 = Yellow 
+    *   6 = LightGray 
+    *   7 = DarkMagenta 
+    *   8 = DarkCyan
+    *   9 = DarkGreen 
+    *   10 = DarkRed 
+    *   11 = DarkBlue 
+    *   12 = DarkYellow 
+    *   13 = DarkGrey
+    *   14 = Black
+* cleaning_track: true / false
+* statistics: true / false
+* smooth: 0 ..... 59
+
+The options set this way can't be overriden by the menu later!
+
 ### More about the config file
 * The config file **must** be named: **traccar2gpx.json**
 * The file must be in valid json format.
 * The file **must** be in the same directory as **traccar2gpx.exe**
 * The file must include:
-    *  the **URL** to access the traccar server & the **port** to access it. Typically this is http://your_url:8082 . <br />**Remark:** http not http**s**!  <br /> If you self-host your traccar server, make sure the have the right port forward setup in your router.
+    *  the **URL** to access the traccar server & the **port** to access it. Typically this is http://your_url:8082 . <br />**Remark:** http not http**s**!  <br /> If you self-host your traccar server, make sure to have the right port forward setup in your router.
     *  your user-id and password that has the proper rights to access your traccar admin API.
     
 ## Use of traccar2gpx
@@ -95,3 +136,4 @@ Here is an example of how to edit your config file:
 |2.3 | Fixed some minor problems.|
 |2.4 | Fixed problems with codepages. Thanks to pki791.|
 |2.5 | Reestablished smoothening of elevation data. <br/> Implemented pre-selection of more date ranges.<br/> Tested with Traccar version 6.4 |
+|2.6 | Implemented to pre set specific traccer options.|
