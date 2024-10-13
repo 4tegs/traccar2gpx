@@ -2,7 +2,7 @@
 # traccar 2 gpx
 # Hans Straßgütl
 #
-# Fetches Tracks from Traccar 5.4 and builds a valid Garmin GPX track.
+# Fetches Tracks from Traccar and builds a valid Garmin GPX track.
 # ..........................................................................................
 # More information: readme.md
 # 
@@ -1058,8 +1058,8 @@ if __name__ == "__main__":
         else:
             track_color_set  = config_dic.get("track_color")
             clean_Track.set(config_dic.get("cleaning_track"))                       # Die BoolenVar wird mit set und get behandelt.
-            statistics.set(config_dict.get("statistics"))     
-            smoothen_w.current(config_dict.get("smooth"))
+            statistics.set(config_dic.get("statistics"))     
+            smoothen_w.current(config_dic.get("smooth"))
 
     # ....................................................
     # Setzte deine Variablen

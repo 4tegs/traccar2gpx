@@ -1,0 +1,14 @@
+{
+    "root_url": "http://your-url.de:8082",
+    "email": "your email",
+    "password": "your password",
+
+    "TrackColor-explanation": "0 = Magenta, 1 = Cyan, 2 = Green, 3 = Red, 4 = Blue, 5 = Yellow, 6 = LightGray, 7 = DarkMagenta, 8 = DarkCyan, 9 = DarkGreen, 10 = DarkRed, 11 = DarkBlue, 12 = DarkYellow, 13 = DarkGrey, 14 = Black",
+    
+    "Yamaha": {
+        "track_color": 11,
+        "cleaning_track": false,
+        "statistics": true,
+        "smooth": 5
+    }
+}

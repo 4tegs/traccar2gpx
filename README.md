@@ -50,6 +50,7 @@ Here is an example of how to edit your config file:
 }
 ```
 ### Pre-set options for specific trackers
+See example provided as a file: *traccar2gpx_example.json*
 ```json
     {
     "root_url": "your_url:port",
@@ -100,7 +101,7 @@ The options set this way can't be overriden by the menu later!
     
 ## Use of traccar2gpx
 
-![Der HPP Kabelsatz](./images/traccar2gpx_2_5.jpg "traccar2gpx menue options")
+![Traccar menue options](./images/traccar2gpx_2_5.jpg "traccar2gpx menue options")
 
 
 |Option |Explanation |

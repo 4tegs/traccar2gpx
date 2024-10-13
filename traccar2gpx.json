@@ -1,5 +1,5 @@
 {
-    "root_url": "http://your_url.com:8082",
-    "email": "your_email",
-    "password": "your_password"
+    "root_url": "http://your-url.de:8082",
+    "email": "your email",
+    "password": "your password"
 }
