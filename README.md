@@ -100,7 +100,7 @@ The options set this way can't be overriden by the menu later!
     
 ## Use of traccar2gpx
 
-![traccar2gpx menue](https://motorradtouren.de/traccar2gpx_2_5.jpg "traccar2gpx menue options")
+![Der HPP Kabelsatz](./images/traccar2gpx_2_5.jpg "traccar2gpx menue options")
 
 
 |Option |Explanation |
