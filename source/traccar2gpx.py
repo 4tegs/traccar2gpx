@@ -19,1320 +19,1010 @@
 #                       * Now with choices to select date range
 #                       * Within the config JSON one can pre-set options per tracker. Details see Readme
 # 
+#   2026 06 10      Major update: 
+#                       * complete recoding. First attempt was my first python code. Now 
+#                   
+#                   
+#                   
 # ##########################################################################################
+
 
 # ------------------------------------------------------------------------------------------
 # Global Imports
 # ------------------------------------------------------------------------------------------
 import os
 import sys
+import json
 import time
 import requests
-from requests.auth import HTTPBasicAuth
 from datetime import datetime, timedelta
-
-from babel import Locale
-from babel import numbers
-
-# from gpx_converter import Converter
+from typing import Dict, List, Optional, Tuple, Any
 
 import tkinter as tk
-from tkinter import *
-from tkinter import ttk
-# from tkinter.messagebox import showinfo
+from tkinter import ttk, messagebox as msgbox
 from ttkthemes import ThemedTk
-# from ttkthemes import *
-
-import tkinter.messagebox as msgbox
-from datetime import datetime, timedelta
 from tkcalendar import Calendar
 
 import gpxpy
 import gpxpy.gpx
 import numpy as np
 
-import json
-
-# ...................................................
-# lxml is a library for processing XML and HTML in the Python language.
-# On windows lxml needs to be installed via "pip install lxml"
-# unless doing so, it won't be imported.
-# ...................................................
+# Optional: Use lxml for XML handling (fallback to standard library)
 try:
-    # Load LXML or fallback to cET or ET
-    import lxml.etree as mod_etree  # type: ignore
-except:
+    import lxml.etree as mod_etree
+except ImportError:
     try:
-        import xml.etree.cElementTree as mod_etree  # type: ignore
-    except:
-        import xml.etree.ElementTree as mod_etree  # type: ignore
+        import xml.etree.cElementTree as mod_etree
+    except ImportError:
+        import xml.etree.ElementTree as mod_etree
 
 
-global my_config_file
-global config_dic
-global clean_Track
+# ..........................................................................................
+# Constants and Defaults
+# ..........................................................................................
+DEFAULT_CONFIG = {
+    "root_url": "http://your-url.de:8082",
+    "email": "your_email",
+    "password": "your_password",
+    "winx": 100,
+    "winy": 100,
+    "track_color": 11,  # DarkBlue
+    "cleaning_track": False,
+    "statistics": True,
+    "smooth": 5,
+    "all_tracker": False,
+    "start_date": datetime.now().strftime("%Y-%m-%d"),
+    "end_date": datetime.now().strftime("%Y-%m-%d"),
+}
 
-# ------------------------------------------------------------------------------------------
-# End my Program
-# 2022 10 20
-# ------------------------------------------------------------------------------------------
-def quit_my_program():
-    ''' Save current Windows position in Config File. Afterwards quit my program'''
-    '''
-    Use sys.exit - not quit()!                                              
-    Check if menue preselects exists in Config JSON       
-    If not: Create                                       
-    '''
-    # start_d = datetime.strptime(start_datum.get(), "%Y-%m-%d")
-    # end_d = datetime.strptime(end_datum.get(), "%Y-%m-%d")
-    # days = (end_d - start_d).days +1
-    widget_x, widget_y = mainframe.winfo_rootx(), mainframe.winfo_rooty()    
-    config_dic.update({"winx" : widget_x}) 
-    config_dic.update({"winy" : widget_y}) 
-    tracker_selected = choice_tracker.current()
-    # If the tracker is not listed as one of the individual trackers in the config json
-    # save the color as the standard
-    x = config_dic.get(str(tracker_selected))
-    if not x:
-        config_dic.update({"track_color" : color_choice.current()}) 
-    # if the last choice was to get all trackers at once, 
-    # use the default color to save it 
-    if all_tracker:
-        config_dic.update({"track_color" : color_choice.current()}) 
-    # if none of the above was true, don't touch the existing color!b    
-    config_dic.update({"tracker_selected" : choice_tracker.current()}) 
-    config_dic.update({"cleaning_track" : clean_Track.get()}) 
-    config_dic.update({"statistics" : statistics.get()}) 
-    config_dic.update({"all_tracker" : all_Tracker.get()}) 
-    config_dic.update({"start_date" : start_datum.get()}) 
-    config_dic.update({"end_date" : end_datum.get()}) 
-    # start_d = datetime.strptime(start_datum.get(), "%Y-%m-%d")
-    # config_dic.update({"days_back" : (int(tage_choice.get())-1) })
-    config_dic.update({"smooth" : smoothen_w.current()}) 
-    # config_dic.update({"smooth" : smoothen.get()}) 
+# Color options: mapping from numeric codes to color names for BaseCamp compatibility
+COLOR_OPTIONS = {
+    0: "Magenta",
+    1: "Cyan",
+    2: "Green",
+    3: "Red",
+    4: "Blue",
+    5: "Yellow",
+    6: "LightGray",
+    7: "DarkMagenta",
+    8: "DarkCyan",
+    9: "DarkGreen",
+    10: "DarkRed",
+    11: "DarkBlue",
+    12: "DarkYellow",
+    13: "DarkGrey",
+    14: "Black",
+}
 
-    with open(my_config_file, "w", encoding='utf-8') as data:
-        json.dump(config_dic, data, indent=4)    
+# Reverse mapping for color names to numeric codes
+COLOR_NAME_TO_CODE = {v: k for k, v in COLOR_OPTIONS.items()}
 
-    sys.exit('Tschüss!')
+# ------------------------------------------------------------------------------
+# Klasse: Utility
+# Zweck : Utility Functions
+# ------------------------------------------------------------------------------
+class Utility:
+    @staticmethod
+    # ..............................................................................
+    # Routine : delete_file()
+    # ..............................................................................
+    def delete_file(filepath: str) -> None:
+        """Delete a file if it exists."""
+        if os.path.exists(filepath):
+            os.remove(filepath)
 
-# ------------------------------------------------------------------------------------------
-# Errorsections
-# 2022 10 20
-# ------------------------------------------------------------------------------------------
-def error_message(error):
-    def exit_now():
-        sys.exit('Oh weh - ein Fehler!')
+    @staticmethod
+    # ..............................................................................
+    # Routine : load_config()
+    # ..............................................................................
+    def load_config(config_file: str) -> Dict[str, Any]:
+        """Load or create the configuration file."""
+        try:
+            with open(config_file, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except FileNotFoundError:
+            with open(config_file, "w", encoding="utf-8") as f:
+                json.dump(DEFAULT_CONFIG, f, indent=4)
+            return DEFAULT_CONFIG.copy()
+        except json.JSONDecodeError:
+            raise ValueError(f"Invalid JSON in configuration file '{config_file}'.")
 
-    ''' Error Section. Hand over error-level. Program will be quit. '''
-    
-    # get the current path of where the program is started
-    path = os.getcwd()
-    root = Tk()
-    root.title("Error!!")
-    root.eval('tk::PlaceWindow . center')
+    @staticmethod
+    # ..............................................................................
+    # Routine : save_config()
+    # ..............................................................................
+    def save_config(config_file: str, data: Dict[str, Any]) -> None:
+        """Save the configuration to a file."""
+        with open(config_file, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=4)
 
-    mainframe = ttk.Frame(root, padding="25 25 25 25")
-    mainframe.grid(column=0, row=0, sticky=(N, W, E, S))
-    root.columnconfigure(0, weight=1)
-    root.rowconfigure(0, weight=1)
+    @staticmethod
+    # ..............................................................................
+    # Routine : convert_seconds_to_time()
+    # ..............................................................................
+    def convert_seconds_to_time(seconds: float) -> str:
+        """Convert seconds to a formatted time string (HH:MM:SS)."""
+        hours, remainder = divmod(int(seconds), 3600)
+        minutes, seconds = divmod(remainder, 60)
+        return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
 
-    quitbutton = ttk.Button(mainframe, text='Exit', command=exit_now)
-    quitbutton.grid(column=1, row=4, sticky="S")
-
-    if error == 1:
-        ttk.Label(mainframe, text="The configuration <traccar2gpx.json> is missing.").grid(column=1, row=1, sticky=W)
-        ttk.Label(mainframe, text="A new version has been created here:    " +  path).grid(column=1, row=2, sticky=W)
-        ttk.Label(mainframe, text="YOU MUST UPDATE the created version with your credentials before you can carry on!").grid(column=1, row=3, sticky=W)
-
-    if error == 2:
-        ttk.Label(mainframe, text="Missing the TRACAR JSON input File").grid(
-            column=1, row=1, sticky=W)
-        ttk.Label(mainframe, text="Check if connection to Traccar is working.").grid(
-            column=1, row=2, sticky=W)
-
-    if error == 3:
-        ttk.Label(mainframe, text="The configuration file is wrong. Check:").grid(
-            column=1, row=1, sticky=W)
-        ttk.Label(mainframe, text=path + r"\traccar2gpx.json").grid(column=1, row=2, sticky=W)
-
-    if error == 4:
-        ttk.Label(mainframe, text="Can't query the devices from Traccar.").grid(
-            column=1, row=1, sticky=W)
-        ttk.Label(mainframe, text="Make sure you entered the right user credentials.").grid(
-            column=1, row=2, sticky=W)        
-        ttk.Label(mainframe, text="Make sure the user has admin rights and at least one tracker device applied.").grid(
-            column=1, row=3, sticky=W)        
-    
-    if error == 5:
-            ttk.Label(mainframe, text="There are no active Tracker available on Traccar.").grid(
-                column=1, row=1, sticky=W)
-            ttk.Label(mainframe, text="Make sure you have admin rights and at least one tracker device active.").grid(
-                column=1, row=2, sticky=W)
-
-    if error == 6:
-            ttk.Label(mainframe, text="Routine has been called without GPX content!").grid(
-                column=1, row=1, sticky=W)
-            ttk.Label(mainframe, text="This must not have happend. Call the programmer....").grid(
-                column=1, row=2, sticky=W)
-            
-    if error == 7:
-            ttk.Label(mainframe, text="Your root URL seems to be wrong.").grid(
-                column=1, row=1, sticky=W)
-            ttk.Label(mainframe, text="Is it missing a http?").grid(
-                column=1, row=2, sticky=W)
-            
-    if error == 8:
-            ttk.Label(mainframe, text="Your root URL seems to be wrong.").grid(
-                column=1, row=1, sticky=W)
-            ttk.Label(mainframe, text="Are you sure that your root_url points to the right server?").grid(
-                column=1, row=2, sticky=W)
-
-    if error == 9:
-                ttk.Label(mainframe, text="Your settings for smoothing the track includes more then 50% points of the trackspoints.").grid(
-                    column=1, row=1, sticky=W)
-
-
-    for child in mainframe.winfo_children():
-        child.grid_configure(padx=5, pady=5)
-
-    quitbutton.focus()
-    root.bind("<Return>", "sys.exit('Tschüss!')")
-    root.protocol("WM_DELETE_WINDOW", "sys.exit('Tschüss!')")
-    root.mainloop()
-
-# ------------------------------------------------------------------------------------------
-# get some statistics around the track
-# 2022 10 21
-# ------------------------------------------------------------------------------------------
-def convert(seconds):
-    seconds = seconds % (24 * 3600)
-    hour = seconds // 3600
-    seconds %= 3600
-    minutes = seconds // 60
-    seconds %= 60
-
-def statistics_init():
-    '''Initialize a dictionary with the values for the statistics 
-    
-    Returns the dictionary.
-    '''   
-    statistic_dict = {
-        'Points in track' : ['Points in Track'.ljust(19)+": "], 
-        'Length 2D' : ['Length 2D'.ljust(19)+": "],
-        'Length 3D' : ['Length 3D'.ljust(19)+": "],
-        # "Unterwegs" : ['Duration'.ljust(19)+": "],
-        # "Moving time" : ['Moving time'.ljust(19)+": "],
-        # "Stopped time" : ['Stopped time'.ljust(19)+": "],
-        # "Moving distance" : ['Moving Distance'.ljust(19)+": "],
-        # "Stopped distance" : ['Stopped Distance'.ljust(19)+": "],
-        "Max speed" : ['Max Speed'.ljust(19)+": "],
-        "Elevation min" : ['Elevation min'.ljust(19)+": "],
-        "Elevation max" : ['Elevation max'.ljust(19)+": "],
-        "Uphill" : ['Uphill'.ljust(19)+": "],
-        "Downhill" : ['Downhill'.ljust(19)+": "]
+# ------------------------------------------------------------------------------
+# Klasse: ErrorHandler
+# Zweck : Error Handling
+# ------------------------------------------------------------------------------
+class ErrorHandler:
+    ERROR_MESSAGES = {
+        1: {
+            "title": "Configuration Missing",
+            "message": (
+                "The configuration file <traccar2gpx.json> is missing.\n"
+                "A template has been created in the current directory.\n"
+                "Please update it with your Traccar credentials."
+            ),
+        },
+        2: {
+            "title": "Missing Traccar Data",
+            "message": "Failed to fetch data from Traccar. Check your connection and credentials.",
+        },
+        3: {
+            "title": "Invalid Configuration",
+            "message": "The configuration file is invalid. Check the JSON format.",
+        },
+        4: {
+            "title": "No Devices Found",
+            "message": (
+                "Could not fetch devices from Traccar.\n"
+                "Ensure your user has admin rights and at least one active tracker."
+            ),
+        },
+        5: {
+            "title": "No Active Trackers",
+            "message": "No active trackers available. Check your Traccar setup.",
+        },
     }
-    return statistic_dict
+
+    @staticmethod
+    # ..............................................................................
+    # Routine : show_error()
+    # ..............................................................................
+    def show_error(error_code: int) -> None:
+        """Display an error message in a popup window."""
+        msg = ErrorHandler.ERROR_MESSAGES.get(
+            error_code,
+            {"title": "Error", "message": "An unknown error occurred."}
+        )
+        root = tk.Tk()
+        root.title(msg["title"])
+        root.eval('tk::PlaceWindow . center')
+        ttk.Label(root, text=msg["message"], padding=25).grid(column=0, row=0)
+        ttk.Button(root, text="Exit", command=sys.exit).grid(column=0, row=1, pady=10)
+        root.mainloop()
 
 
-def gpx_statistics(gpx, statistic_dict): 
-    '''Fill statistics dictionary. Append an entry to each list item.
-    
-    Returns the dictionary.
-    '''
-    if len(gpx.tracks) > 0:
+
+# ------------------------------------------------------------------------------
+# Klasse: GPXProcessor
+# Zweck: GPX Processing (BaseCamp-Compatible)
+# ------------------------------------------------------------------------------
+class GPXProcessor:
+    @staticmethod
+    # ..............................................................................
+    # Routine : clean_track()
+    # ..............................................................................
+    def clean_track(gpx: gpxpy.gpx.GPX) -> gpxpy.gpx.GPX:
+        """Remove invalid track points (speed < 0.5 km/h or > 250 km/h)."""
+        if not gpx.tracks:
+            return gpx
+
+        for track in gpx.tracks:
+            for segment in track.segments:
+                i = 0
+                while i < len(segment.points) - 1:
+                    point = segment.points[i]
+                    next_point = segment.points[i + 1]
+                    
+                    # Check for duplicate coordinates
+                    if (point.latitude == next_point.latitude and
+                        point.longitude == next_point.longitude):
+                        segment.points.pop(i)
+                        continue
+                    
+                    # Check speed (convert m/s to km/h)
+                    speed = segment.get_speed(i)
+                    if speed is None or speed < 0.5 / 3.6 or speed > 250 / 3.6:
+                        segment.points.pop(i)
+                        continue
+                    i += 1
+                segment.reduce_points(min_distance=1.0)
+        return gpx
+
+    @staticmethod
+    # ..............................................................................
+    # Routine : smooth_track()
+    # ..............................................................................
+    def smooth_track(gpx: gpxpy.gpx.GPX, window_size: int) -> gpxpy.gpx.GPX:
+        """Smooth elevation data using a moving average."""
+        if not gpx.tracks or window_size <= 0:
+            return gpx
+
+        for _ in range(window_size):
+            for track in gpx.tracks:
+                for segment in track.segments:
+                    segment.smooth(vertical=True, horizontal=False, remove_extremes=False)
+        return gpx
+
+    @staticmethod
+    # ..............................................................................
+    # Routine : set_track_name()
+    # ..............................................................................
+    def set_track_name(gpx: gpxpy.gpx.GPX, date_str: str) -> Tuple[gpxpy.gpx.GPX, str]:
+        """Set a descriptive name for the track (e.g., '2024-06-09_TrackerName')."""
+        if not gpx.tracks:
+            return gpx, ""
+
+        for track in gpx.tracks:
+            track.name = f"{date_str}_{track.name}"
+        return gpx, f"{date_str}_{gpx.tracks[0].name}"
+
+    @staticmethod
+    # ..............................................................................
+    # Routine : set_header()
+    # ..............................................................................
+    def set_header(gpx: gpxpy.gpx.GPX) -> gpxpy.gpx.GPX:
+        """Set GPX header for BaseCamp compatibility."""
+        gpx.nsmap = {
+            "gpxx": "http://www.garmin.com/xmlschemas/GpxExtensions/v3",
+            "gpxtpx": "http://www.garmin.com/xmlschemas/TrackPointExtension/v1",
+        }
+        gpx.creator = "https://gravelmaps.de"
+        gpx.version = "1.1"
+        
+        # Add metadata for BaseCamp compatibility
+        try:
+            gpx.metadata = gpxpy.gpx.GPXMetadata()
+            gpx.metadata.name = "Traccar2GPX Track"
+            gpx.metadata.description = "Converted from Traccar to Garmin-compatible GPX"
+        except (AttributeError, TypeError):
+            # Fallback: Manually add metadata as XML elements
+            try:
+                gpx_xml = gpx.to_xml()
+                root = mod_etree.fromstring(gpx_xml.encode('utf-8'))
+                
+                # Add metadata element
+                metadata = mod_etree.Element("metadata")
+                name = mod_etree.SubElement(metadata, "name")
+                name.text = "Traccar2GPX Track"
+                desc = mod_etree.SubElement(metadata, "desc")
+                desc.text = "Converted from Traccar to Garmin-compatible GPX"
+                
+                # Insert metadata after the root element
+                root.insert(1, metadata)
+                
+                # Parse back to gpx object
+                gpx.from_xml(mod_etree.tostring(root, encoding='unicode'))
+            except Exception:
+                pass
+
+        return gpx
+
+    @staticmethod
+    # ..............................................................................
+    # Routine : set_time_format()
+    # ..............................................................................
+    def set_time_format(gpx: gpxpy.gpx.GPX) -> gpxpy.gpx.GPX:
+        """Convert timezone-aware timestamps to UTC (Z) for Garmin compatibility."""
+        if not gpx.tracks:
+            return gpx
+
+        for track in gpx.tracks:
+            for segment in track.segments:
+                for point in segment.points:
+                    if point.time:
+                        time_str = str(point.time)
+                        
+                        if " " in time_str and "Z" in time_str:
+                            time_str = time_str.replace(" ", "T")
+                        elif " " in time_str and "." in time_str:
+                            time_str = time_str.replace(" ", "T") + "Z"
+                        elif " " in time_str:
+                            time_str = time_str.replace(" ", "T") + "Z"
+                        elif "+" in time_str:
+                            time_str = time_str.split("+")[0] + "Z"
+                        elif "-" in time_str and time_str.count("-") > 2:
+                            parts = time_str.split("-", 2)
+                            time_str = parts[0] + "-" + parts[2].replace(":", "") + "Z"
+                        elif "Z" not in time_str:
+                            time_str = time_str + "Z"
+                        
+                        try:
+                            point.time = datetime.strptime(time_str, "%Y-%m-%dT%H:%M:%SZ")
+                        except ValueError:
+                            pass
+        return gpx
+
+    @staticmethod
+    # ..............................................................................
+    # Routine : set_color()
+    # ..............................................................................
+    def set_color(gpx: gpxpy.gpx.GPX, color: str) -> gpxpy.gpx.GPX:
+        """Add Garmin-compatible color extension to the track using color names."""
+        namespace = "{http://www.garmin.com/xmlschemas/GpxExtensions/v3}"
+        color_element = mod_etree.Element(f"{namespace}TrackExtension")
+        color_sub = mod_etree.SubElement(color_element, f"{namespace}DisplayColor")
+        
+        # Use color name instead of numeric code for BaseCamp compatibility
+        # color_name = COLOR_OPTIONS.get(color, "DarkBlue")
+        color_sub.text = color
+
+        if gpx.tracks:
+            for track in gpx.tracks:
+                track.extensions.append(color_element)
+        return gpx
+
+    @staticmethod
+    # ..............................................................................
+    # Routine : calculate_statistics()
+    # ..............................................................................
+    def calculate_statistics(gpx: gpxpy.gpx.GPX) -> Dict[str, str]:
+        """Calculate and return statistics for the GPX track."""
+        if not gpx.tracks:
+            return {}
+
+        stats = {}
         for track in gpx.tracks:
             for segment in track.segments:
                 uphill, downhill = segment.get_uphill_downhill()
-                unterwegs = gpx.get_duration() # floating 
-                hoch_min, hoch_max = gpx.get_elevation_extremes()
+                min_elevation, max_elevation = gpx.get_elevation_extremes()
                 moving_time, stopped_time, moving_distance, stopped_distance, max_speed = gpx.get_moving_data()
-                cc = statistic_dict["Points in track"]  ; cd = str(segment.get_points_no()).rjust(12)               ; cc.append(cd) ; statistic_dict['Points in track'] = cc
-                cc = statistic_dict["Length 2D"]        ; cd = str(int(segment.length_2d())).rjust(10) + ' m'       ; cc.append(cd) ; statistic_dict['Length 2D'] = cc
-                cc = statistic_dict["Length 3D"]        ; cd = str(int(segment.length_3d())).rjust(10) + ' m'       ; cc.append(cd) ; statistic_dict['Length 3D'] = cc
-                # cc = statistic_dict["Unterwegs"]        ; cd = str(convert(unterwegs)).rjust(12)                     ; cc.append(cd) ; statistic_dict['Unterwegs'] = cc
-                # cc = statistic_dict["Moving time"]      ; cd = str(convert(moving_time)).rjust(12)                   ; cc.append(cd) ; statistic_dict['Moving time'] = cc
-                # cc = statistic_dict["Stopped time"]     ; cd = str(convert(stopped_time)).rjust(12)                  ; cc.append(cd) ; statistic_dict['Stopped time'] = cc
-                # cc = statistic_dict["Moving distance"]  ; cd = str(round(moving_distance/1000 ,2)).rjust(9)+' Km'   ; cc.append(cd) ; statistic_dict['Moving distance'] = cc
-                # cc = statistic_dict["Stopped distance"] ; cd = str(round(stopped_distance/1000 ,2)).rjust(9)+' Km'  ; cc.append(cd) ; statistic_dict['Stopped distance'] = cc
-                cc = statistic_dict["Max speed"]        ; cd = str(round((max_speed/1000*3600),2)).rjust(8)+' Km/h' ; cc.append(cd) ; statistic_dict['Max speed'] = cc
-                cc = statistic_dict["Elevation min"]    ; cd = str(int(hoch_min)).rjust(10) + ' m'                   ; cc.append(cd) ; statistic_dict['Elevation min'] = cc
-                cc = statistic_dict["Elevation max"]    ; cd = str(int(hoch_max)).rjust(10) + ' m'                   ; cc.append(cd) ; statistic_dict['Elevation max'] = cc
-                cc = statistic_dict["Uphill"]           ; cd = str(int(uphill)).rjust(10) + ' m'                     ; cc.append(cd) ; statistic_dict['Uphill'] = cc
-                cc = statistic_dict["Downhill"]         ; cd = str(int(downhill)).rjust(10) + ' m'                   ; cc.append(cd) ; statistic_dict['Downhill'] = cc
-    return statistic_dict
 
-def gpx_statistics_print(statistic_dict, lines):
-    '''
-    Loops through dictionary and prepares readable statistics, line by line, for later write to file
-    
-    * Input: dictionary, lines (list of lines)
-    * Return: lines
-
-    '''
-    line = "-".ljust(21) +  'Raw GPX'.rjust(12) +  'Reworked'.rjust(12) +'\n'
-    lines.append(line)
-
-    for x in statistic_dict:
-        line = ''
-        for y in statistic_dict[x]: 
-            line = line + y
-        line = line + "\n"
-        lines.append(line)
-    
-    return lines
+                stats = {
+                    "Points in track": str(segment.get_points_no()),
+                    "Length 2D": f"{int(segment.length_2d())} m",
+                    "Length 3D": f"{int(segment.length_3d())} m",
+                    "Max speed": f"{round((max_speed/1000*3600), 2)} Km/h",
+                    "Elevation min": f"{int(min_elevation)} m",
+                    "Elevation max": f"{int(max_elevation)} m",
+                    "Uphill": f"{int(uphill)} m",
+                    "Downhill": f"{int(downhill)} m",
+                }
+        return stats
 
 
-# ------------------------------------------------------------------------------------------
-# Convert seconds to a timezone.
-#   Example: seconds = 3600 -> return = 02:00
-# 2022 10 20
-# ------------------------------------------------------------------------------------------
-def convert_sec_2_TZ(seconds):
-    '''TZ must be provided as seconds. Returns a formated 00:00 '''
-    min, sec = divmod(seconds, 60)
-    hour, min = divmod(min, 60)
-    return '%02d:%02d' % (hour, min )
+# ..........................................................................................
+# Traccar API Interaction
+# ..........................................................................................
 
-# ------------------------------------------------------------------------------------------
-# Delete Files no longer needed. Called by main routine
-# 2022 10 20
-# ------------------------------------------------------------------------------------------
-'''Delete file if it exists'''
-def delete_file(a):
-    if os.path.exists(a):
-        os.remove(a)
+# ------------------------------------------------------------------------------
+# Klasse: TraccarAPI
+# Zweck : Kapselt logisch zusammengehörige Funktionen und Daten.
+# ------------------------------------------------------------------------------
+class TraccarAPI:
+    @staticmethod
+    # ..............................................................................
+    # Routine : get_devices()
+    # ..............................................................................
+    def get_devices(config: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Fetch all enabled devices from Traccar."""
+        url = f"{config['root_url']}/api/devices"
+        auth = requests.auth.HTTPBasicAuth(config["email"], config["password"])
+        params = {"all": "True"}
 
-# ------------------------------------------------------------------------------------------
-# Load Configuration
-# 2022 10 20
-# ------------------------------------------------------------------------------------------
-def load_config(my_config_file):
-    ''' If exists: Load JSON Configuration file. -> JSON  '''
-    ''' Similar to the load_json but with a different error code in case the file doesn't exist. '''
-    try:																                # Lade die Config Datei
-        with open(my_config_file, encoding='utf-8') as f:												#
-            return json.load(f)															#
+        try:
+            response = requests.get(url, auth=auth, params=params, headers={"accept": "application/json"})
+            response.raise_for_status()
+        except requests.exceptions.InvalidSchema:
+            ErrorHandler.show_error(7)
+            sys.exit(1)
+        except requests.exceptions.ConnectionError:
+            ErrorHandler.show_error(8)
+            sys.exit(1)
+        except requests.exceptions.HTTPError:
+            ErrorHandler.show_error(4)
+            sys.exit(1)
 
-    except FileNotFoundError:
-        
-        config_dic = {
-            "root_url": "http://your-url.de:8082",
-            "email": "your email",
-            "password": "your password"
+        devices = response.json()
+        return [device for device in devices if not device.get("disabled", True)]
+
+    @staticmethod
+    # ..............................................................................
+    # Routine : fetch_gpx()
+    # ..............................................................................
+    def fetch_gpx(
+        config: Dict[str, Any],
+        from_time: str,
+        to_time: str,
+        device_id: int,
+        output_file: str
+    ) -> None:
+        """Fetch GPX data for a specific device and time range."""
+        url = f"{config['root_url']}/api/positions/gpx"
+        auth = requests.auth.HTTPBasicAuth(config["email"], config["password"])
+        params = {
+            "deviceId": [device_id],
+            "from": from_time,
+            "to": to_time,
         }
+        headers = {"accept": "application/gpx+xml"}
 
-        with open(my_config_file, "w", encoding='utf-8') as data:
-            json.dump(config_dic, data, indent=4)    
-        error_message(1)
+        try:
+            response = requests.get(url, auth=auth, params=params, headers=headers)
+            response.raise_for_status()
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 404:
+                ErrorHandler.show_error(2)
+            else:
+                ErrorHandler.show_error(4)
+            sys.exit(1)
 
-
-# ------------------------------------------------------------------------------------------
-# Load Json
-# ------------------------------------------------------------------------------------------
-def load_json(my_config_file):
-    ''' If exists: Load JSON file. -> JSON  '''
-    try:																                # Lade die Config Datei
-        with open(my_config_file, encoding='utf-8') as f:												#
-            return json.load(f)															#
-    except FileNotFoundError:
-        error_message(2)
-
-# ...........................................................................
-# Rufe alle Devices ab
-# ...........................................................................
-# ------------------------------------------------------------------------------------------
-# Filter records for enabled devices only
-# 2022 10 20
-# ------------------------------------------------------------------------------------------
-def find_device_enabled(my_json):
-    ''' Filter all non active Devices '''
-    ''' Used by get_all_devices'''
-    if str(my_json["disabled"]) == 'False':
-        check = True
-    else:
-        check = False
-    return check
-
-def get_all_devices(traccar_result):
-    '''All User available devices will be fetched from Traccar'''
-    url = config_dic['root_url'] + '/api/devices'
-    headers = {'accept': 'application/json'}
-    a = HTTPBasicAuth(config_dic['email'], config_dic['password'])
-    payload = {'all': 'True'}
-    try: 
-        r = requests.get(url,  params=payload, auth=a, headers=headers)
-    except requests.exceptions.InvalidSchema:
-        # You may need to enter a http:// before your URL
-        error_message(7)
-    except requests.exceptions.ConnectionError:
-        # URL is wrong. Program can't connect to server.
-        error_message(8)
-    # ...........................................................................
-    if r.status_code != 200:
-        # Alle anderen Fehler die nicht zum crash des Programs führen
-        error_message(4)
-    else:
-        with open(traccar_result, 'wb') as f:												# Schreibe eine binäre Datei
-            f.write(r.content)
-        # Das was ich von der API bekomme, ist noch kein fertiges JSON. Deshalb schreibe ich das raus
-        # und lese es dann JSON mäßig wieder ein. Nun kann ich ordentlich JSON bearbeiten.
-        my_json = load_json(traccar_result) 
-        # Filter alle nicht aktiven Devices weg 
-        my_json = list(filter(find_device_enabled, my_json))
-        delete_file(traccar_result)
-    return my_json
-
-# ...................................................
-# Cleaning the Track
-# 2022 10 20
-# ...................................................
-def gpx_clean_track(gpx):   
-    '''
-    Reduces the number of points in the track segment.
-
-    ### Args: 
-    - Input gpx(parsed)
-
-    - Returns: gpx(reworked parsed) - now with less trackpoints 
-
-    ### Methods:
-        - reduces by minimum distance = 1m
-        - reduces by minimum speed of < 0.5
-        - reduces by max speed of > 250km/h
-        - reduces if similar latitude and longitude as next point in track
-    '''
-    if len(gpx.tracks) > 0:
-        for track in gpx.tracks:           
-            for segment in track.segments:
-                i = 0
-                kill = False
-                while i < (segment.get_points_no() -2):         # remove track points with speed < 0.5
-                    lat1 = segment.points[i].latitude
-                    lon1 = segment.points[i].longitude
-                    lat2 = segment.points[i+1].latitude
-                    lon2 = segment.points[i+1].longitude
-                    if (lat1 == lat2) & (lon1 == lon2): kill = True
-                    speed = segment.get_speed(i)    
-                    if speed == None: 
-                        kill = True
-                        speed = 0
-                    if (speed < 0.5) | (speed > 250) : kill = True
-                    if kill == True: 
-                        segment.remove_point(i) 
-                        kill = False
-                    else:
-                        i = i+1
-                segment.reduce_points(1)                        # reduce by minimum distance of 1 Meter
-        return gpx
-
-# ...................................................
-# Smooth the Track
-# 2024 07 19
-# ...................................................
-def gpx_smooth_track(gpx, window_size):
-    ''' 
-    Smoothing the gpx track height data window_size times.
-    ### Args:
-    - Input: gpx(parsed)
-
-     - Returns: gpx(reworked parsed)
-    
-    Uses not published gpxpy function
-    '''
-    if len(gpx.tracks) > 0:
-            for i in range(window_size):
-                for track in gpx.tracks:                # pulling data from Traccar this is only one track and one segment
-                    for segment in track.segments:
-                        segment.smooth( vertical=True, horizontal=False, remove_extremes=False) # make sure only one parameter is set! 
-    return gpx
-
-# ...................................................
-# Attach a name to the track
-# 2022 10 20
-# ...................................................
-def gpx_set_new_trackname(gpxdate, gpx):   
-    '''
-    Traccar returns the name of the tracker as the tracks name only. Let's give it a more sounding name:
-    year-month-day_TrackerName
-
-    ### Args: 
-    - Input: gpx(parsed)
-
-    - Returns: 
-        1) gpx(reworked parsed) - now with sounding name 
-        2) new_name_for_gpx:string (to be used as filename later)
-
-    '''
-    if len(gpx.tracks) > 0:
-        for track in gpx.tracks:
-            format = "%Y-%m-%d_"
-            # name = datetime.strftime(track.segments[0].points[0].time, format)
-            name = gpxdate + "_"+ track.name
-            track.name = name
-    return gpx, name
-
-# ...................................................
-# Write Header that Garmin accepts
-# 2022 10 20
-# ...................................................
-def gpx_set_new_header(gpx):
-    '''
-    Garmin needs a v1.1 GPX and we add some additional personalisation
-    
-    ### Args: 
-    - Input gpx(parsed)
-
-    - Returns: gpx(reworked parsed) - now with Garmin header
-    '''
-    namespace = '{gpxx}'                  # definition of extension
-    nsmap = {namespace[1:-1]: 'http://www.garmin.com/xmlschemas/GpxExtensions/v3'}
-    gpx.nsmap =nsmap
-    gpx.creator='https://gravelmaps.de'
-    gpx.version = '1.1'
-    return gpx
-
-# ...................................................
-# Garmin doesn't accept a TZ - but traccar delivers that. 
-# What it accepts is a Z for UTC. 
-# As Traccar stores everything in UTC, let's 
-# change the +02:00 to Z
-# 2022 10 20
-# ...................................................
-def gpx_set_correct_timeformat(gpx):
-    '''
-    Garmin doesn't accept a TZ - but traccar delivers that. What Garmin accepts is a Z for UTC. 
-    As Traccar stores everything in UTC, let's change the +02:00 to Z
-
-    ### Args: 
-    - Input gpx(parsed)
-
-    - Returns: gpx(reworked parsed) - now all trackpoints in format as per example: <time>2022-10-17T07:16:59Z</time> 
-    '''
-    if len(gpx.tracks) > 0:                 # is there anything?
-        for track in gpx.tracks:            # Coming from traccar there should be one track in it only, but who knows?
-            for segment in track.segments:
-                for point in segment.points:
-                    pt = str(point.time)
-                    pt, weg = pt.split("+", 1)
-                    format = "%Y-%m-%d %H:%M:%S"
-                    pt1 = datetime.strptime(pt, format)
-                    point.time=pt1
-    return gpx
-
-# ...................................................
-# Set Tracks color
-# Use the lxml library to handle GPX / XML extensions.
-# 2022 10 20
-# ...................................................
-def gpx_set_color(gpx, track_color ):   
-    '''
-    Traccar doesn't deliver color as its not defined in standard GPX. Garmin supports that with its own <extension> definition.
-    Color is helpful to manage tracks in Mapsource or Basecamp.
-    
-    ### Args: 
-    - Input gpx(parsed), track_color:string
-
-    - Returns: gpx(reworked parsed) - now with color for track
-
-    '''
-    gpx.name = 'traccar2gpx_4_garmin'
-    gpx.description = 'This track was pulled from Traccar and formated for Garmin Software by https://gravelmaps.de'
-
-    #definition of extension
-    namespace = '{gpxx}'
-
-    #create extension element
-    root = mod_etree.Element(f'{namespace}TrackExtension')
-    # create level 2 SubElement
-    rootElement2 = mod_etree.SubElement(root,f'{namespace}DisplayColor')
-    rootElement2.text = track_color
-
-    if len(gpx.tracks) > 0:                 # is there anything?
-        for track in gpx.tracks:            # Coming from traccar there should be one track in it only, but who knows?
-            track.extensions.append(root)
-    return gpx
+        with open(output_file, "wb") as f:
+            f.write(response.content)
 
 
-# ###################################################################################################
+# ------------------------------------------------------------------------------
+# Klasse: Traccar2GPXApp
+# Main Application GUI
+# ------------------------------------------------------------------------------
+class Traccar2GPXApp:
+    # ..............................................................................
+    # Routine : __init__()
+    # ..............................................................................
+    def __init__(self, root: tk.Tk, config_file: str):
+        self.root = root 
+        self.config_file = config_file
+        self.config = Utility.load_config(config_file)
+        self.devices = []
+        self.mainframe = None
+        self.status_text = None
+        self.setup_ui()
+
+    # ..............................................................................
+    # Routine : setup_ui()
+    # ..............................................................................
+    def setup_ui(self) -> None:
+        """Initialize the user interface."""
+        self.root.title("Traccar2GPX v3.0 (tested with Traccar 6.14.2)")
+        self.root.eval('tk::PlaceWindow . center')
+
+        self.mainframe = ttk.Frame(self.root, padding="25 25 25 25")
+        self.mainframe.grid(column=0, row=0, sticky=(tk.N, tk.W, tk.E, tk.S))
+        self.root.columnconfigure(0, weight=1)
+        self.root.rowconfigure(0, weight=1)
+
+        # Date selection
+        ttk.Button(self.mainframe, text="Start Date:", command=self.select_start_date).grid(column=0, row=0, sticky=tk.W, pady=2)
+        self.start_date = tk.StringVar(value=self.config.get("start_date", datetime.now().strftime("%Y-%m-%d")))
+        start_entry = ttk.Entry(self.mainframe, textvariable=self.start_date, state="readonly")
+        start_entry.grid(column=1, row=0, sticky=tk.W, pady=2)
 
 
-# ------------------------------------------------------------------------------------------
-# Get GPX from Traccar
-# 2022 10 20
-# ------------------------------------------------------------------------------------------
-def get_gpx_data(from_time, to_time, tracker_id, gpx_file_name ): 				# Wird vom Hauptprogramm geladen
-    '''Get Route in GPX format from Traccar
+        ttk.Button(self.mainframe, text="End Date:", command=self.select_end_date).grid(column=0, row=1, sticky=tk.W, pady=2)
+        self.end_date = tk.StringVar(value=self.config.get("end_date", datetime.now().strftime("%Y-%m-%d")))
+        end_entry = ttk.Entry(self.mainframe, textvariable=self.end_date, state="readonly")
+        end_entry.grid(column=1, row=1, sticky=tk.W, pady=2)
+
+        # Date range buttons
+        # ttk.Label(self.mainframe, text="Quick Dates:").grid(column=0, row=2, sticky=tk.W, pady=2)
+        ttk.Button(self.mainframe, text="Today", command=self.set_today).grid(column=0, row=2, sticky=tk.W, pady=2)
+        ttk.Button(self.mainframe, text="Yesterday", command=self.set_yesterday).grid(column=1, row=2, sticky=tk.W, pady=2)
+        ttk.Button(self.mainframe, text="This Week", command=self.set_this_week).grid(column=0, row=3, sticky=tk.W, pady=2)
+        ttk.Button(self.mainframe, text="Last Week", command=self.set_last_week).grid(column=1, row=3, sticky=tk.W, pady=2)
+        ttk.Button(self.mainframe, text="This Month", command=self.set_this_month).grid(column=0, row=4, sticky=tk.W, pady=2)
+        ttk.Button(self.mainframe, text="Last Month", command=self.set_last_month).grid(column=1, row=4, sticky=tk.W, pady=2)
+        ttk.Button(self.mainframe, text="This Year", command=self.set_this_year).grid(column=0, row=5, sticky=tk.W, pady=2)
+        ttk.Button(self.mainframe, text="Last Year", command=self.set_last_year).grid(column=1, row=5, sticky=tk.W, pady=2)
+
+        # Tracker selection
+
+        ttk.Label(self.mainframe, text="Tracker:").grid(column=2, row=0, sticky=tk.E, pady=2)
+        self.tracker_var = tk.StringVar()
+        self.tracker_combobox = ttk.Combobox(self.mainframe, textvariable=self.tracker_var, state="readonly")
+        self.tracker_combobox.grid(column=3, row=0, sticky=tk.W, pady=2)
+        self.tracker_combobox.bind("<<ComboboxSelected>>", self.on_tracker_selected)
+
+        # Color selection (using color names)
+        ttk.Label(self.mainframe, text="Track Color:").grid(column=2, row=1, sticky=tk.E, pady=2)
+        self.color_var = tk.StringVar(value=list(COLOR_OPTIONS.values())[self.config.get("track_color", 1)])
+        self.color_combobox = ttk.Combobox(self.mainframe, textvariable=self.color_var, state="readonly")
+        self.color_combobox["values"] = list(COLOR_OPTIONS.values())
+        self.color_combobox.grid(column=3, row=1, sticky=tk.W, pady=2)
         
-    ### Args: 
-    - Input: from-date-time:datetime, to-date-time:datetime, trackerid:int, gpx_file_name:string
+        # All trackers checkbox
+        ttk.Label(self.mainframe, text="All Tracker at once:").grid(column=2, row=2, sticky=tk.E, pady=2)
+        self.all_trackers = tk.BooleanVar(value=self.config.get("all_tracker", False))
+        ttk.Checkbutton(self.mainframe, variable=self.all_trackers).grid(column=3, row=2, sticky=tk.W, pady=2)
 
-    - Returns: gpx file based on gpx_file_name
+        # Clean track checkbox
+        ttk.Label(self.mainframe, text="Clean Track:").grid(column=2, row=3, sticky=tk.E, pady=2)
+        self.clean_track = tk.BooleanVar(value=self.config.get("cleaning_track", False))
+        ttk.Checkbutton(self.mainframe, variable=self.clean_track).grid(column=3, row=3, sticky=tk.W, pady=2)
 
-    '''
-    global config_dic
-                                                                                    # global statusNachricht1
-                                                                                    # Hänge noch die benötigten Aufrufparameter an
-    url = config_dic['root_url'] + '/api/positions/gpx' 
-                                                                                    # Wenn du die Daten per http://syno.motorradtouren.de:8082 abholen willst,
-                                                                                    # vergesse nicht, die 8082 zur Syno weiter zu leiten!
-                                                                                    # Machen den Auth Aufruf vie die HTTPBasicAuth
-    my_auth = HTTPBasicAuth(config_dic['email'], config_dic['password'])
-    payload = {																		# Stelle die weiteren Parameter zusammen um die Daten von Traccar zu bekommen
-                                                                                    # Welche Device? Es darf nur eine angegeben werden!
-        'deviceId': [tracker_id],                                                   #
-        'from': from_time,															#
-        'to': to_time																#
-    }																			    #
-    headers = {'accept': 'application/gpx+xml'}
-    data_from_traccar = requests.get(url,  params=payload, auth=my_auth,headers=headers)	# Hole die Datensätze
-    if data_from_traccar.status_code != 200:										# Wenn alles ok, dann gibt get 200 zurück.
-        error_message(9)
-
-    with open(gpx_file_name, 'wb') as f:											# Schreibe eine Datei
-        f.write(data_from_traccar.content)                                          # r wurde mit requests gefüllt. Schreibe nun den content von r raus
-                                                                                    # die File ist nun ein einziger langer String im GPX / XML Format
-
-    
-
-# ------------------------------------------------------------------------------------------
-# Hauptprogram
-# ------------------------------------------------------------------------------------------
-if __name__ == "__main__":
-    ''' Hier startet das Program '''
-
-
-
-    def select_start_date():
-        '''Get Start Date from Menue'''
-        end_date = end_datum.get()
-        start_date = start_datum.get()
-        date = datetime.strptime(start_date,"%Y-%m-%d")
-
-        # Make Menue
-        root = Tk()
-        root.title("Set Start Date")
-        root.eval('tk::PlaceWindow . center')
-        top = ttk.Frame(root, padding="25 25 25 25")
-        top.grid(column=0, row=0, sticky=(N, W, E, S))
-        root.geometry('+{}+{}'.format(winx,winy))  
-        root.columnconfigure(0, weight=1)
-        root.rowconfigure(0, weight=1)
-        cal = Calendar(top, selectmode="day", year=date.year, month=date.month, day=date.day)
-        cal.grid(column=1, row=2, sticky="S")
+        # Statistics checkbox
+        ttk.Label(self.mainframe, text="Statistics:").grid(column=2, row=4, sticky=tk.E, pady=2)
+        self.statistics = tk.BooleanVar(value=self.config.get("statistics", True))
+        ttk.Checkbutton(self.mainframe, variable=self.statistics).grid(column=3, row=4, sticky=tk.W, pady=2)
         
-        def set_date():
-            start_date = cal.selection_get().strftime("%Y-%m-%d")
-            jetzt = datetime.now().strftime("%Y-%m-%d")
-            if start_date > end_date:
-                start_date = end_date
-            if start_date > jetzt:
-                start_date = jetzt
-            start_datum.set(start_date)
-            # start_d = datetime.strptime(start_datum.get(), "%Y-%m-%d")
-            # end_d = datetime.strptime(end_datum.get(), "%Y-%m-%d")
-            # days = (end_d - start_d).days +1
-            # style = ttk.Style()
-            # style.configure("Red.TLabel", foreground="red")
-            # ttk.Label(mainframe, text="Fetching "+str(days).rjust(5)+" days", style="Red.TLabel").grid(column=1, row=8, sticky="W")
-            root.destroy()
+        # Smooth elevation
+        ttk.Label(self.mainframe, text="Smooth Elevation:").grid(column=2, row=5, sticky=tk.E, pady=2)
+        self.smooth_var = tk.IntVar(value=self.config.get("smooth", 1))
+        self.smooth_spinbox = ttk.Spinbox(self.mainframe, from_=0, to=59, textvariable=self.smooth_var)
+        self.smooth_spinbox.grid(column=3, row=5, sticky=tk.W, pady=2)
 
-        # Add buttons to set the start and end dates
-        button = ttk.Button(top, text="Set Start Date", command=set_date)
-        button.grid(column=1, row=4, sticky="S")
 
-    def select_end_date():
-        '''Get End Date from Menue'''
-        start_date = start_datum.get()
-        end_date = end_datum.get()
-        date = datetime.strptime(end_date,"%Y-%m-%d")
+        # Track type selection
+        # ttk.Label(self.mainframe, text="Track Type:").grid(column=0, row=5, sticky=tk.W, pady=2)
+        self.track_type = tk.StringVar(value=self.config.get("track_type", "daily"))
+        ttk.Radiobutton(self.mainframe, text="Daily Tracks", variable=self.track_type, value="daily").grid(column=0, row=6, sticky=tk.W, pady=2)
+        ttk.Radiobutton(self.mainframe, text="One Track", variable=self.track_type, value="one").grid(column=1, row=6, sticky=tk.W, pady=2)
+
+        # Status text field with scrollbar
+        ttk.Label(self.mainframe, text="Status:").grid(column=0, row=8, sticky=tk.W, pady=2)
+        self.status_frame = ttk.Frame(self.mainframe)
+        self.status_frame.grid(column=0, row=9, columnspan=6, sticky=tk.W+tk.E, pady=2)
         
-        # Make Menue
-        root = Tk()
-        root.title("Set End Date")
-        root.eval('tk::PlaceWindow . center')
-        top = ttk.Frame(root, padding="25 25 25 25")
-        top.grid(column=0, row=0, sticky=(N, W, E, S))
-        root.geometry('+{}+{}'.format(winx,winy))  
-        root.columnconfigure(0, weight=1)
-        root.rowconfigure(0, weight=1)
-        cal = Calendar(top, selectmode="day", year=date.year, month=date.month, day=date.day)
-        cal.grid(column=1, row=2, sticky="S")
+        self.status_text = tk.Text(self.status_frame, height=5, width=80, state=tk.DISABLED, wrap=tk.WORD)
+        self.status_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         
-        def set_date():
-            end_date = cal.selection_get().strftime("%Y-%m-%d")
-            jetzt = datetime.now().strftime("%Y-%m-%d")
-            if end_date < start_date:
-                end_date = start_date
-            if end_date > jetzt:
-                end_date = jetzt
-            end_datum.set(end_date)
+        self.status_scroll = ttk.Scrollbar(self.status_frame, orient=tk.VERTICAL, command=self.status_text.yview)
+        self.status_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+        self.status_text.config(yscrollcommand=self.status_scroll.set)
 
-            # start_d = datetime.strptime(start_datum.get(), "%Y-%m-%d")
-            # end_d = datetime.strptime(end_datum.get(), "%Y-%m-%d")
-            # days = (end_d - start_d).days +1
-            # style = ttk.Style()
-            # style.configure("Red.TLabel", foreground="red")
-            # ttk.Label(mainframe, text="Fetching "+str(days).rjust(5)+" days", style="Red.TLabel").grid(column=1, row=8, sticky="W")
-            root.destroy()
+        # Set window position
+        self.root.geometry(f"+{self.config.get('winx', 100)}+{self.config.get('winy', 100)}")
+
+        # Load devices and set initial tracker
+        self.load_devices()
+
+        # Action buttons
+        ttk.Button(self.mainframe, text="Fetch and Convert", command=self.fetch_and_convert).grid(column=0, row=10, pady=20)
+        ttk.Button(self.mainframe, text="Exit", command=self.save_and_exit).grid(column=1, row=10, pady=20)
+
+        # Clear status field on startup
+        self.update_status("Ready")
+
+
+    # ..............................................................................
+    # Routine : update_status()
+    # ..............................................................................
+    def update_status(self, message: str) -> None:
+        """Update the status text field with a new message (newest on top)."""
+        self.status_text.config(state=tk.NORMAL)
+        self.status_text.insert(tk.END, f"{message}\n")
+        self.status_text.see(tk.END)  # Scroll to the new message
+        self.status_text.config(state=tk.DISABLED)
+        self.root.update_idletasks()  # Force immediate GUI update
+
+    # ..............................................................................
+    # Routine : clear_status()
+    # ..............................................................................
+    def clear_status(self) -> None:
+        """Clear the status text field."""
+        self.status_text.config(state=tk.NORMAL)
+        self.status_text.delete(1.0, tk.END)
+        self.status_text.config(state=tk.DISABLED)
+
+    # ..............................................................................
+    # Routine : on_tracker_selected()
+    # ..............................................................................
+    def on_tracker_selected(self, event=None) -> None:
+        """Load tracker-specific defaults from config when tracker is selected."""
+        selected_tracker = self.tracker_var.get()
+        if not selected_tracker or not self.devices:
+            return
+
+        tracker_config = self.config.get(selected_tracker, {})
+
+        if "track_color" in tracker_config:
+            color_code = tracker_config["track_color"]
+            self.color_var.set(COLOR_OPTIONS.get(color_code, "DarkBlue"))
+        
+        if "cleaning_track" in tracker_config:
+            self.clean_track.set(tracker_config["cleaning_track"])
+        
+        if "smooth" in tracker_config:
+            self.smooth_var.set(tracker_config["smooth"])
+
+        if "statistics" in tracker_config:
+            self.statistics.set(tracker_config["statistics"])
+
+    # ..............................................................................
+    # Routine : load_devices()
+    # ..............................................................................
+    def load_devices(self):
+        """Lädt die Geräte asynchron und zeigt den Splash Screen an."""
+        self.show_splash()  # Splash Screen anzeigen
+        self.root.after(0, self._load_devices_async)  # Asynchron laden
+
+    # ..............................................................................
+    # Routine : _load_devices_async()
+    # ..............................................................................
+    def _load_devices_async(self):
+        """Lädt die Geräte im Hintergrund und schließt den Splash Screen danach."""
+        try:
+            self.devices = TraccarAPI.get_devices(self.config)
+            device_names = [device["name"] for device in self.devices]
+            self.tracker_combobox["values"] = device_names
             
-        # Add buttons to set the start and end dates
-        button = ttk.Button(top, text="Set End Date", command=set_date)
-        button.grid(column=1, row=4, sticky="S")
+            initial_tracker = self.config.get("tracker_selected", device_names[0] if device_names else "")
+            if initial_tracker in device_names:
+                self.tracker_var.set(initial_tracker)
+                self.on_tracker_selected()
+            elif device_names:
+                self.tracker_var.set(device_names[0])
+                self.on_tracker_selected()
+        except Exception:
+            ErrorHandler.show_error(4)
+        finally:
+            self.hide_splash()  # Splash Screen schließen
 
+    # ..............................................................................
+    # Routine : select_start_date()
+    # ..............................................................................
+    def select_start_date(self) -> None:
+        """Open a calendar to select the start date."""
+        try:
+            current_date = datetime.strptime(self.start_date.get(), "%Y-%m-%d")
+        except ValueError:
+            current_date = datetime.now()
+        
+        date_window = tk.Toplevel(self.root)
+        date_window.title("Select Start Date")
+        date_window.geometry("300x300")
+        date_window.update_idletasks()
+        date_window.geometry(f"+{self.root.winfo_x() + 50}+{self.root.winfo_y() + 50}")
+        
+        cal = Calendar(date_window, selectmode="day", year=current_date.year, month=current_date.month, day=current_date.day)
+        cal.pack(padx=25, pady=25)
 
-    def select_today_date():
-        start_datum.set(datetime.now().strftime("%Y-%m-%d"))
-        start_entry = ttk.Entry(mainframe, textvariable=start_datum, state="readonly")
-        start_entry.grid(column=2,columnspan=3,  row=1, sticky=W)
-        end_datum.set(datetime.now().strftime("%Y-%m-%d"))
-        end_entry = ttk.Entry(mainframe, textvariable=end_datum, state="readonly")
-        end_entry.grid(column=2,columnspan=3,  row=2, sticky=W)
-    
-    def select_yesterday_date():
-        now = datetime.now()
-        yesterday = now - timedelta(days=1)
-        start_datum.set(yesterday.strftime("%Y-%m-%d"))
-        # start_datum.set(datetime.now().strftime("%Y-%m-%d"))
-        start_entry = ttk.Entry(mainframe, textvariable=start_datum, state="readonly")
-        start_entry.grid(column=2,columnspan=3,  row=1, sticky=W)
-        end_datum.set(yesterday.strftime("%Y-%m-%d"))
-        end_entry = ttk.Entry(mainframe, textvariable=end_datum, state="readonly")
-        end_entry.grid(column=2,columnspan=3,  row=2, sticky=W)
+        # ..............................................................................
+        # Routine : set_date()
+        # ..............................................................................
+        def set_date() -> None:
+            selected_date = cal.selection_get().strftime("%Y-%m-%d")
+            end_date = self.end_date.get()
+            today = datetime.now().strftime("%Y-%m-%d")
+            if selected_date > end_date:
+                selected_date = end_date
+            if selected_date > today:
+                selected_date = today
+            self.start_date.set(selected_date)
+            date_window.destroy()
 
-    def select_this_week():
+        ttk.Button(date_window, text="Set Date", command=set_date).pack(pady=10)
+
+    # ..............................................................................
+    # Routine : select_end_date()
+    # ..............................................................................
+    def select_end_date(self) -> None:
+        """Open a calendar to select the end date."""
+        try:
+            current_date = datetime.strptime(self.end_date.get(), "%Y-%m-%d")
+        except ValueError:
+            current_date = datetime.now()
+        
+        date_window = tk.Toplevel(self.root)
+        date_window.title("Select End Date")
+        date_window.geometry("300x300")
+        date_window.update_idletasks()
+        date_window.geometry(f"+{self.root.winfo_x() + 50}+{self.root.winfo_y() + 50}")
+        
+        cal = Calendar(date_window, selectmode="day", year=current_date.year, month=current_date.month, day=current_date.day)
+        cal.pack(padx=25, pady=25)
+
+        # ..............................................................................
+        # Routine : set_date()
+        # ..............................................................................
+        def set_date() -> None:
+            selected_date = cal.selection_get().strftime("%Y-%m-%d")
+            start_date = self.start_date.get()
+            today = datetime.now().strftime("%Y-%m-%d")
+            if selected_date < start_date:
+                selected_date = start_date
+            if selected_date > today:
+                selected_date = today
+            self.end_date.set(selected_date)
+            date_window.destroy()
+
+        ttk.Button(date_window, text="Set Date", command=set_date).pack(pady=10)
+
+    # ..............................................................................
+    # Routine : set_today()
+    # ..............................................................................
+    def set_today(self) -> None:
+        """Set date range to today."""
+        today = datetime.now().strftime("%Y-%m-%d")
+        self.start_date.set(today)
+        self.end_date.set(today)
+
+    # ..............................................................................
+    # Routine : set_yesterday()
+    # ..............................................................................
+    def set_yesterday(self) -> None:
+        """Set date range to yesterday."""
+        yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+        self.start_date.set(yesterday)
+        self.end_date.set(yesterday)
+
+    # ..............................................................................
+    # Routine : set_this_week()
+    # ..............................................................................
+    def set_this_week(self) -> None:
+        """Set date range to this week."""
         now = datetime.now()
         start_of_week = now - timedelta(days=now.weekday())
-        start_datum.set(start_of_week.strftime("%Y-%m-%d"))
-        # start_datum.set(datetime.now().strftime("%Y-%m-%d"))
-        start_entry = ttk.Entry(mainframe, textvariable=start_datum, state="readonly")
-        start_entry.grid(column=2,columnspan=3,  row=1, sticky=W)
-        end_datum.set(now.strftime("%Y-%m-%d"))
-        end_entry = ttk.Entry(mainframe, textvariable=end_datum, state="readonly")
-        end_entry.grid(column=2,columnspan=3,  row=2, sticky=W)
-        
-    def select_last_week():
+        self.start_date.set(start_of_week.strftime("%Y-%m-%d"))
+        self.end_date.set(now.strftime("%Y-%m-%d"))
+
+    # ..............................................................................
+    # Routine : set_last_week()
+    # ..............................................................................
+    def set_last_week(self) -> None:
+        """Set date range to last week."""
         now = datetime.now()
         start_of_this_week = now - timedelta(days=now.weekday())
         start_of_last_week = start_of_this_week - timedelta(weeks=1)
         end_of_last_week = start_of_this_week - timedelta(days=1)
-        start_datum.set(start_of_last_week.strftime("%Y-%m-%d"))
-        start_entry = ttk.Entry(mainframe, textvariable=start_datum, state="readonly")
-        start_entry.grid(column=2,columnspan=3,  row=1, sticky=W)
-        end_datum.set(end_of_last_week.strftime("%Y-%m-%d"))
-        end_entry = ttk.Entry(mainframe, textvariable=end_datum, state="readonly")
-        end_entry.grid(column=2,columnspan=3,  row=2, sticky=W)
-        
-    def select_this_month():
+        self.start_date.set(start_of_last_week.strftime("%Y-%m-%d"))
+        self.end_date.set(end_of_last_week.strftime("%Y-%m-%d"))
+
+    # ..............................................................................
+    # Routine : set_this_month()
+    # ..............................................................................
+    def set_this_month(self) -> None:
+        """Set date range to this month."""
         now = datetime.now()
-        start_of_this_month = datetime(now.year, now.month, 1)
-        start_datum.set(start_of_this_month.strftime("%Y-%m-%d"))
-        start_entry = ttk.Entry(mainframe, textvariable=start_datum, state="readonly")
-        start_entry.grid(column=2,columnspan=3,  row=1, sticky=W)
-        end_datum.set(now.strftime("%Y-%m-%d"))
-        end_entry = ttk.Entry(mainframe, textvariable=end_datum, state="readonly")
-        end_entry.grid(column=2,columnspan=3,  row=2, sticky=W)
-        
-    def select_last_month():
+        start_of_month = datetime(now.year, now.month, 1)
+        self.start_date.set(start_of_month.strftime("%Y-%m-%d"))
+        self.end_date.set(now.strftime("%Y-%m-%d"))
+
+    # ..............................................................................
+    # Routine : set_last_month()
+    # ..............................................................................
+    def set_last_month(self) -> None:
+        """Set date range to last month."""
         now = datetime.now()
-        # Calculate the first day of the current month
-        first_day_of_this_month = datetime(now.year, now.month, 1)
-        # Calculate the last day of the previous month
-        last_day_of_last_month = first_day_of_this_month - timedelta(days=1)
-        # Calculate the first day of the previous month
-        first_day_of_last_month = datetime(last_day_of_last_month.year, last_day_of_last_month.month, 1)
-        start_datum.set(first_day_of_last_month.strftime("%Y-%m-%d"))
-        start_entry = ttk.Entry(mainframe, textvariable=start_datum, state="readonly")
-        start_entry.grid(column=2,columnspan=3,  row=1, sticky=W)
-        end_datum.set(last_day_of_last_month.strftime("%Y-%m-%d"))
-        end_entry = ttk.Entry(mainframe, textvariable=end_datum, state="readonly")
-        end_entry.grid(column=2,columnspan=3,  row=2, sticky=W)
-        
-    def select_this_year():
+        first_day_of_last_month = datetime(now.year, now.month - 1, 1) if now.month > 1 else datetime(now.year - 1, 12, 1)
+        last_day_of_last_month = datetime(now.year, now.month, 1) - timedelta(days=1)
+        self.start_date.set(first_day_of_last_month.strftime("%Y-%m-%d"))
+        self.end_date.set(last_day_of_last_month.strftime("%Y-%m-%d"))
+
+    # ..............................................................................
+    # Routine : set_this_year()
+    # ..............................................................................
+    def set_this_year(self) -> None:
+        """Set date range to this year."""
         now = datetime.now()
-        start_of_this_year = datetime(now.year, 1, 1)
-        start_datum.set(start_of_this_year.strftime("%Y-%m-%d"))
-        start_entry = ttk.Entry(mainframe, textvariable=start_datum, state="readonly")
-        start_entry.grid(column=2,columnspan=3,  row=1, sticky=W)
-        end_datum.set(now.strftime("%Y-%m-%d"))
-        end_entry = ttk.Entry(mainframe, textvariable=end_datum, state="readonly")
-        end_entry.grid(column=2,columnspan=3,  row=2, sticky=W)
+        start_of_year = datetime(now.year, 1, 1)
+        self.start_date.set(start_of_year.strftime("%Y-%m-%d"))
+        self.end_date.set(now.strftime("%Y-%m-%d"))
 
-    def get_one_traccar():
-        '''Get One huge track from Traccar'''
-        def get_my_track():
-            ''' Subroutine is used in two ways: When looping through all tracker or when working on a single tracker only.'''
-            lines = []
-            track_cleaning = clean_Track.get()
-            trackcolor = color_choice.get()
-            get_gpx_data(from_time, to_time, tracker_id, gpx_file_name)
+    # ..............................................................................
+    # Routine : set_last_year()
+    # ..............................................................................
+    def set_last_year(self) -> None:
+        """Set date range to last year."""
+        now = datetime.now()
+        start_of_last_year = datetime(now.year - 1, 1, 1)
+        end_of_last_year = datetime(now.year - 1, 12, 31)
+        self.start_date.set(start_of_last_year.strftime("%Y-%m-%d"))
+        self.end_date.set(end_of_last_year.strftime("%Y-%m-%d"))
+
+    # ..............................................................................
+    # Routine : show_splash()
+    # ..............................................................................
+    def show_splash(self):
+        """Zeigt einen Splash Screen, während die Geräte geladen werden."""
+        self.splash = tk.Toplevel(self.root)
+        # self.splash.overrideredirect(True)  # Kein Fensterrahmen
+        self.splash.geometry(f"+{self.config.get('winx')}+{self.config.get('winy')}")
+        # self.splash.geometry("300x100+500+300")
+        self.splash.title("Traccar2GPX - Loading available Tracker")
+
+        label = ttk.Label(
+            self.splash,
+            text="Loading available Tracker from your TRACCAR server via API.\nThis usually takes a few seconds.\n\nPlease wait.", font=("Helvetica", 12)
+        )
+        label.pack(padx=130,pady=220)
+
+        # Fenster zentrieren
+        self.splash.update()
+        self.splash.lift()
+        self.splash.grab_set()  # Blockiert Interaktion mit anderen Fenstern
+
+    # ..............................................................................
+    # Routine : hide_splash()
+    # ..............................................................................
+    def hide_splash(self):
+        """Schließt den Splash Screen und zeigt das Hauptfenster an."""
+        if hasattr(self, 'splash'):
+            self.splash.destroy()
+        self.root.deiconify()  # Hauptfenster anzeigen
+
+    # ..............................................................................
+    # Routine : fetch_and_convert()
+    # ..............................................................................
+    def fetch_and_convert(self) -> None:
+        """Fetch data from Traccar and convert to GPX."""
+        # Clear status field
+        self.clear_status()
+        
+        start_date = self.start_date.get()
+        end_date = self.end_date.get()
+        track_type = self.track_type.get()
+        all_trackers = self.all_trackers.get()
+
+        if all_trackers:
+            device_ids = [device["id"] for device in self.devices]
+        else:
+            selected_device = self.tracker_var.get()
+            device_ids = [device["id"] for device in self.devices if device["name"] == selected_device]
+
+        if not device_ids:
+            self.update_status("Error: No tracker selected or available.")
+            return
+
+        for device_id in device_ids:
+            device_name = next(device["name"] for device in self.devices if device["id"] == device_id)
             
-            # ...........................................
-            # Make all necessary changes to the GPX track
-            # ...........................................
-            # first load it
-            # ...........................................
-            gpx_file = open(gpx_file_name, 'r', encoding='utf-8')     # Lese die GPX File ein als das was sie ist: Text
-            gpx = gpxpy.parse(gpx_file)             # Jetzt mache ein GPX/XML aus dem Text
-            if gpx.get_track_points_no() > 0:
-                statistic_dict = statistics_init()
-                statistic_dict = gpx_statistics(gpx, statistic_dict)
+            if track_type == "one":
+                self.update_status(f"Starting: {start_date}_to_{end_date}_{device_name}")
+                self.process_device(device_id, device_name, start_date, end_date, f"{start_date}_to_{end_date}")
+            else:
+                current_date = datetime.strptime(start_date, "%Y-%m-%d")
+                end_date_obj = datetime.strptime(end_date, "%Y-%m-%d")
+                while current_date <= end_date_obj:
+                    date_str = current_date.strftime("%Y-%m-%d")
+                    self.update_status(f"Starting: {date_str}_{device_name}")
+                    self.process_device(device_id, device_name, date_str, date_str, date_str)
+                    current_date += timedelta(days=1)
 
-                smoothen = smoothen_w.current()
-                if smoothen > gpx.get_track_points_no(): smoothen = 0
-                if smoothen > 0: gpx = gpx_smooth_track(gpx, smoothen)
-                
-                if track_cleaning: gpx = gpx_clean_track(gpx)
+        self.update_status("GPX files created successfully!")
 
-                gpxdate = from_time[:10] + "-" + to_time[:10]
-                gpx, new_gpx_fileName = gpx_set_new_trackname(gpxdate, gpx)
-                gpx = gpx_set_new_header(gpx)
-                gpx = gpx_set_correct_timeformat(gpx)
-                gpx = gpx_set_color(gpx, trackcolor) 
+    # ..............................................................................
+    # Routine : process_device()
+    # ..............................................................................
+    def process_device(
+        self,
+        device_id: int,
+        device_name: str,
+        start_date: str,
+        end_date: str,
+        filename_prefix: str
+    ) -> None:
+        """Process a single device and date range."""
+        temp_gpx_file = f"temp_{device_id}_{start_date}_to_{end_date}.gpx"
+        output_gpx_file = f"{filename_prefix}_{device_name}.gpx"
 
-                statistic_dict = gpx_statistics(gpx, statistic_dict)
-                lines = gpx_statistics_print(statistic_dict, lines)
-                # ...........................................
-                # Finally write GPX to disc
-                # ...........................................
-                new_gpx_fileName1 = new_gpx_fileName + ".gpx"
-                with open(new_gpx_fileName1, 'w', encoding='utf-8') as f:     
-                    f.write(gpx.to_xml())  
-                f.close()
+        try:
+             # Fetch GPX from Traccar
+            TraccarAPI.fetch_gpx(
+                self.config,
+                f"{start_date}T00:00:00Z",
+                f"{end_date}T23:59:59Z",
+                device_id,
+                temp_gpx_file
+            )
+            # Load and process GPX
+            with open(temp_gpx_file, "r", encoding="utf-8") as f:
+                gpx = gpxpy.parse(f)
+
+            # Skip if no tracks
+            if not gpx.tracks:
+                self.update_status(f"No data for {device_name} on {start_date} to {end_date}")
+                return
+
+            # Skip if all segments are empty
+            has_points = False
+            for track in gpx.tracks:
+                for segment in track.segments:
+                    if segment.points:
+                        has_points = True
+                        break
+                if has_points:
+                    break
+
+            if not has_points:
+                self.update_status(f"No track points for {device_name} on {start_date} to {end_date}")
+                return
+
+             # Apply Garmin-specific processing
+            gpx = GPXProcessor.set_header(gpx)
+            gpx = GPXProcessor.set_time_format(gpx)
+
+            # Berechne Statistiken für Raw GPX (vor allen Änderungen)
+            raw_stats = GPXProcessor.calculate_statistics(gpx)
+
+            # Bereinige den Track, falls "Clean Track" aktiviert ist
+            if self.clean_track.get():
+                gpx = GPXProcessor.clean_track(gpx)
+
+            # Glätte den Track, falls "Smooth" aktiviert ist
+            if self.smooth_var.get() > 0:
+                gpx = GPXProcessor.smooth_track(gpx, self.smooth_var.get())
+
+            # Berechne Statistiken für Reworked GPX (nach allen Änderungen)
+            reworked_stats = GPXProcessor.calculate_statistics(gpx) if (self.clean_track.get() or self.         smooth_var.get() > 0) else None
+
+            gpx, track_name = GPXProcessor.set_track_name(gpx, filename_prefix)
+            gpx = GPXProcessor.set_color(gpx, self.color_var.get())
+
+            # Save the processed GPX with Garmin-compatible XML
+            with open(output_gpx_file, "w", encoding="utf-8") as f:
+                f.write(gpx.to_xml())
+
+            self.update_status(f"Created: {output_gpx_file}")
+
+            if self.statistics.get():
+                stats_file = f"{filename_prefix}_{device_name}.txt"
+                with open(stats_file, "w", encoding="utf-8") as f:
+                    f.write(f"Statistics for {stats_file}\n")
+                    f.write("=" * 53 + "\n\n")
+
+                    # Header für die Tabelle
+                    f.write(" " * 27 + "Raw GPX        Reworked\n")
+                    f.write("-" * 53 + "\n")
+
+                    # Definiere die Kategorien und ihre Formatierung
+                    categories = [
+                        ("Points in Track", "Points in track", ": {:>13} {:>15}"),
+                        ("Length 2D", "Length 2D", ": {:>15} {:>15}"),
+                        ("Length 3D", "Length 3D", ": {:>15} {:>15}"),
+                        ("Max Speed", "Max speed", ": {:>18} {:>15}"),
+                        ("Elevation min", "Elevation min", ": {:>15} {:>15}"),
+                        ("Elevation max", "Elevation max", ": {:>15} {:>15}"),
+                        ("Uphill", "Uphill", ": {:>15} {:>15}"),
+                        ("Downhill", "Downhill", ": {:>15} {:>15}"),
+                    ]
+
+                    # ....................................................
+                    # Gib die Statistiken aus
+                    # ....................................................
+                    for category, key, format_str in categories:
+                        raw_value = raw_stats.get(key, "0")
+                        reworked_value = reworked_stats.get(key, raw_value) if reworked_stats else raw_value
+                        f.write(f"{category:<17}{format_str.format(raw_value, reworked_value)}\n")
+           
+        except Exception as e:
+            self.update_status(f"Error processing {device_name}: {str(e)}")
+        finally:
+            Utility.delete_file(temp_gpx_file)
+
+    # ..............................................................................
+    # Routine : save_and_exit()
+    # ..............................................................................
+    def save_and_exit(self) -> None:
+        """Save configuration and exit the application."""
+        self.config["winx"] = self.root.winfo_x()
+        self.config["winy"] = self.root.winfo_y()
         
-                if statistics.get():
-                    new_gpx_fileName1 = new_gpx_fileName + ".txt"
-                    with open(new_gpx_fileName1, 'w', encoding='utf-8') as f:
-                        f.writelines(lines)
-                    f.close()
-                
-            gpx_file.close()     
-            delete_file(gpx_file_name)
-
-    
-        style = ttk.Style()
-        style.configure("Red.TLabel", foreground="red")
-        ttk.Label(mainframe, text="Running!", style="Red.TLabel").grid(column=1, row=8, sticky="W")
-        root.update()
+        self.config["track_color"] = COLOR_NAME_TO_CODE.get(self.color_var.get(), 11)
+        self.config["cleaning_track"] = self.clean_track.get()
+        self.config["statistics"] = self.statistics.get()
+        self.config["all_tracker"] = self.all_trackers.get()
+        self.config["start_date"] = self.start_date.get()
+        self.config["end_date"] = self.end_date.get()
+        self.config["smooth"] = self.smooth_var.get()
+        self.config["track_type"] = self.track_type.get()
         
-        start_d = datetime.strptime(start_datum.get(), "%Y-%m-%d")
-        end_d = datetime.strptime(end_datum.get(), "%Y-%m-%d")
-
-        # Der Traccar server speichert alles in UTC. 
-        # Wir benötigen daher für die richtige Abfrage die eigene TZ
-        # Dann verändert sich der TZ Offseet je nachdem, ob wir in Daylight Saving sind oder nicht.
-        # Die Zahlen benötigst du Für die Abfrage beim Traccar Server
-        local_tz_offset = (-time.timezone)                                              # TZ of wich this computer is in. Returns seconds
-        TZ_Offset = '00:00'
-        if time.daylight > 0: 
-            local_tz_offset= local_tz_offset+3600
-        if local_tz_offset != 0:
-            TZ_Offset = convert_sec_2_TZ(local_tz_offset) 
+        # nicht sichern, der soll wirklich über die json gesteuert sein
+        # selected_tracker = self.tracker_var.get()
+        # if selected_tracker:
+            # self.config[selected_tracker] = {
+                # "track_color": COLOR_NAME_TO_CODE.get(self.color_var.get(), 11),  
+                # "cleaning_track": self.clean_track.get(),
+                # "smooth": self.smooth_var.get(),
+                # "statistics": self.statistics.get()
+            # }
+        # self.config["tracker_selected"] = selected_tracker
         
-        # The to_time is in date format. To further work on it, make it a string
-        from_time = str(start_d)
-        # remove the time from the string and add an new time including a TZ offset
-        from_time = from_time[:10] + 'T00:00:01.0000+' + str(TZ_Offset)
-        to_time = str(end_d)
-        to_time = to_time[:10] + 'T23:59:59.0000+' +  str(TZ_Offset)
-
-        # Jetzt frage ich ab, ob nur der eine Tracker abgefragt wird oder alle
-        if all_Tracker.get():
-            a= clean_Track.get()
-            b= statistics.get()
-            c = smoothen_w.current()
-            d = color_choice.current()
-            i = 0
-            tracker_loops = my_tracker_amount
-            for i in range(tracker_loops):
-                tracker_id = my_tracker_id[i]
-                x = config_dic.get( my_tracker_names[i])
-                if x: 
-                    try: color_choice.current(x.get("track_color"))
-                    except: color_choice.current(d)
-                    try: clean_Track.set(x.get("cleaning_track"))
-                    except: clean_Track.set(a)
-                    try: statistics.set(x.get("statistics"))     
-                    except: statistics.set(b)
-                    try: smoothen_w.current(x.get("smooth"))
-                    except: smoothen_w.current(c)  
-                get_my_track()
-            color_choice.current(d)
-            clean_Track.set(a)
-            statistics.set(b) 
-            smoothen_w.current(c)  
-        else:
-            tracker_id = my_tracker_id[my_tracker_names.index(choice_tracker.get())]
-            get_my_track()
-        
-        style = ttk.Style()
-        style.configure("Green.TLabel", foreground="green")
-        ttk.Label(mainframe, text="Done!    ", style="Green.TLabel").grid(column=1, row=8, sticky="W")
+        Utility.save_config(self.config_file, self.config)
+        self.root.destroy()
 
 
-
-    # ...........................................
-    # Get the tracks per day 
-    # ...........................................
-    def get_daily_traccar():
-        '''Get Daily Tracks from Traccar'''
-        def get_my_track():                 
-            ''' Subroutine is used in two ways: When looping through all tracker or when working on a single tracker only.'''
-            start_d = datetime.strptime(start_datum.get(), "%Y-%m-%d")
-            end_d = datetime.strptime(end_datum.get(), "%Y-%m-%d")
-            days = (end_d - start_d).days +1
-            jetzt = datetime.now().strftime("%Y-%m-%d")
-            track_cleaning = clean_Track.get()
-            trackcolor = color_choice.get()
-            # Der Traccar server speichert alles in UTC. 
-            # Wir benötigen daher für die richtige Abfrage die eigene TZ
-            # Dann verändert sich der TZ Offseet je nachdem, ob wir in Daylight Saving sind oder nicht.
-            # Die Zahlen benötigst du zweimal: 
-            #   1 Für die Abfrage beim Traccar Server
-            local_tz_offset = (-time.timezone)                                              # TZ of wich this computer is in. Returns seconds
-            TZ_Offset = '00:00'
-            if time.daylight > 0: 
-                local_tz_offset= local_tz_offset+3600
-            if local_tz_offset != 0:
-                TZ_Offset = convert_sec_2_TZ(local_tz_offset) 
-            
-            start_d += timedelta(days=-1)
-            from_date = start_d
-            for i in range(days):														# eine for 0 to Anzahl Tage daysback loop
-                lines = []
-                from_date += timedelta(days=1)
-                # The to_time is in date format. To further work on it, make it a string
-                from_time = str(from_date)
-                # remove the time from the string and add an new time including a TZ offset
-                from_time = from_time[:10] + 'T00:00:01.0000+' + str(TZ_Offset)
-                to_time = str(from_date)
-                to_time = to_time[:10] + 'T23:59:59.0000+' +  str(TZ_Offset)
-                get_gpx_data(from_time, to_time, tracker_id, gpx_file_name)
-                
-                # ...........................................
-                # Make all necessary changes to the GPX track
-                # ...........................................
-                # first load it
-                # ...........................................
-                gpx_file = open(gpx_file_name, 'r', encoding='utf-8')     # Lese die GPX File ein als das was sie ist: Text
-                gpx = gpxpy.parse(gpx_file)             # Jetzt mache ein GPX/XML aus dem Text
-                if gpx.get_track_points_no() > 0:
-                    statistic_dict = statistics_init()
-                    statistic_dict = gpx_statistics(gpx, statistic_dict)
-                    smoothen = smoothen_w.current()
-                    if smoothen > gpx.get_track_points_no(): smoothen = 0
-                    if smoothen > 0: gpx = gpx_smooth_track(gpx, smoothen)
-                    if track_cleaning: gpx = gpx_clean_track(gpx) 
-                    gpxdate = from_time[:10]
-                    gpx, new_gpx_fileName = gpx_set_new_trackname(gpxdate, gpx)
-                    gpx = gpx_set_new_header(gpx)
-                    gpx = gpx_set_correct_timeformat(gpx)
-                    gpx = gpx_set_color(gpx, trackcolor) 
-
-                    statistic_dict = gpx_statistics(gpx, statistic_dict)
-                    lines = gpx_statistics_print(statistic_dict, lines)
-                    # ...........................................
-                    # Finally write GPX to disc
-                    # ...........................................
-                    new_gpx_fileName1 = new_gpx_fileName + ".gpx"
-                    with open(new_gpx_fileName1, 'w', encoding='utf-8') as f:     
-                        f.write(gpx.to_xml())  
-                    f.close()
-            
-                    if statistics.get():
-                        new_gpx_fileName1 = new_gpx_fileName + ".txt"
-                        with open(new_gpx_fileName1, 'w', encoding='utf-8') as f:
-                            f.writelines(lines)
-                        f.close()
-                    
-                gpx_file.close()     # Lese die GPX File ein als das was sie ist: Text
-                delete_file(gpx_file_name)
-
-        style = ttk.Style()
-        style.configure("Red.TLabel", foreground="red")
-        ttk.Label(mainframe, text="Running!", style="Red.TLabel").grid(column=1, row=8, sticky="W")
-        root.update()
-        # Jetzt frage ich ab, ob nur der eine Tracker abgefragt wird oder alle
-        if all_Tracker.get():
-            i = 0
-            tracker_loops = my_tracker_amount
-            d = color_choice.current()
-            a= clean_Track.get()
-            b= statistics.get()
-            c = smoothen_w.current()
-            for i in range(tracker_loops):
-                tracker_id = my_tracker_id[i]
-                x = config_dic.get( my_tracker_names[i])
-                if x: 
-                    try: color_choice.current(x.get("track_color"))
-                    except: color_choice.current(d)
-                    try: clean_Track.set(x.get("cleaning_track"))
-                    except: clean_Track.set(a)
-                    try: statistics.set(x.get("statistics"))     
-                    except: statistics.set(b)
-                    try: smoothen_w.current(x.get("smooth"))
-                    except: smoothen_w.current(c) 
-                get_my_track()
-            color_choice.current(d)
-            clean_Track.set(a)
-            statistics.set(b)     
-            smoothen_w.current(c)
-        else:
-            tracker_id = my_tracker_id[my_tracker_names.index(choice_tracker.get())]
-            get_my_track()
-        
-
-        style = ttk.Style()
-        style.configure("Green.TLabel", foreground="green")
-        ttk.Label(mainframe, text="Done!    ", style="Green.TLabel").grid(column=1, row=8, sticky="W")
-    
-    # ...........................................
-    # Hier wird der Status des Click Select Buttons
-    # für Alle Tracker aus einmal
-    # abgefragt und entsprechend das Tracker Selektionsmenü
-    # an- oder ausgeschaltet
-    # ...........................................
-    def toggle_tracker_selection():
-        if all_Tracker.get():
-            choice_tracker.state(["disabled"])
-            all_tracker = True
-            track_color_set  = config_dic.get("track_color")
-            # color_choice
-            try: 
-                color_choice.current(track_color_set)
-            except:
-                print("Pass im Toggle AllTracker")
-                pass
-        else:
-            choice_tracker.state(["!disabled"])
-            tracker_selected = choice_tracker.current()
-            d = color_choice.current()
-            a= clean_Track.get()
-            b= statistics.get()
-            c = smoothen_w.current()
-            x = config_dic.get( my_tracker_names[tracker_selected])
-            if x: 
-                try: track_color_set = x.get("track_color")
-                except: track_color_set = d
-                try: color_choice.current(x.get("track_color"))
-                except: color_choice.current(d)
-                try: clean_Track.set(x.get("cleaning_track"))
-                except: clean_Track.set(a)
-                try: statistics.set(x.get("statistics"))     
-                except: statistics.set(b)
-                try: smoothen_w.current(x.get("smooth"))
-                except: smoothen_w.current(c) 
-
-                # color_choice.current(track_color_set)
-                # clean_Track.set(x.get("cleaning_track"))
-                # statistics.set(x.get("statistics"))     
-                # smoothen_w.current(x.get("smooth"))
-            all_tracker = False 
-    # ...........................................
-    # Sobald der Tracker im Menü geändert wird, muss
-    # auch die Farbe dazu abgefragt werden.
-    # ...........................................
-    def auswahl_geaendert(event):
-        tracker_selected = choice_tracker.current()
-        d = color_choice.current()
-        a= clean_Track.get()
-        b= statistics.get()
-        c = smoothen_w.current()
-        x = config_dic.get( my_tracker_names[tracker_selected])
-        if x: 
-            # color_choice.current(x.get("track_color"))
-            # clean_Track.set(x.get("cleaning_track"))
-            # statistics.set(x.get("statistics"))     
-            # smoothen_w.current(x.get("smooth"))
-            try: track_color_set = x.get("track_color")
-            except: track_color_set = d
-            try: color_choice.current(x.get("track_color"))
-            except: color_choice.current(d)
-            try: clean_Track.set(x.get("cleaning_track"))
-            except: clean_Track.set(a)
-            try: statistics.set(x.get("statistics"))     
-            except: statistics.set(b)
-            try: smoothen_w.current(x.get("smooth"))
-            except: smoothen_w.current(c) 
-
-        else:
-            track_color_set  = config_dic.get("track_color")
-            clean_Track.set(config_dic.get("cleaning_track"))                       # Die BoolenVar wird mit set und get behandelt.
-            statistics.set(config_dic.get("statistics"))     
-            smoothen_w.current(config_dic.get("smooth"))
-
-    # ....................................................
-    # Setzte deine Variablen
-    # ....................................................
-    traccar_result = "traccar-result.json"      # needed to analyze the various devices applied to the user
-    my_config_file = 'traccar2gpx.json'         # the configuration file name
-    gpx_file_name  = "traccar-get.gpx"         # interim gpx file name
-
-    # ....................................................
-    # Read config File
-    # ....................................................
-    config_dic = load_config(my_config_file) 
-
-    # check if config file has been edited with sense
-    if config_dic['email'] == "your email" or config_dic['root_url'] == "http://your-url.de:8082" or config_dic['password'] == "your password":
-        error_message(3)
-    # ................
-    # Check days back
-    # x = config_dic.get("days_back")
-    # if not x: config_dic.update({"days_back" : 0})                                   # Init die Variable in der Config File
-    # daysback = config_dic.get("days_back")
-    # ................
-    # Check if window x position key exists in Config JSON    
-    # If not: Create                                      
-    x = config_dic.get("winx")
-    if not x: config_dic.update({"winx" : 10})                                   # Init die Variable in der Config File
-    winx = config_dic.get("winx")
-    # ................
-    # Check if window y position key exists in Config JSON    
-    # If not: Create                                       
-    x = config_dic.get("winy")
-    if not x: config_dic.update({"winy" : 10})                                   # Init die Variable in der Config File
-    winy = config_dic.get("winy")
-    # ................
-    # Check for last setting of tracker
-    x = config_dic.get("tracker_selected")
-    if not x: config_dic.update({"tracker_selected" : 0})                        # Init die Variable in der Config File
-    tracker_selected  = config_dic.get("tracker_selected")
-    # ................
-    # Check for last setting of color
-    x = config_dic.get("track_color")
-    if not x: config_dic.update({"track_color" : 0})                             # Init die Variable in der Config File
-    track_color_set  = config_dic.get("track_color")
-    # ................
-    # Check for last Status of Cleaning Track
-    x = config_dic.get("cleaning_track")
-    if not x: config_dic.update({"cleaning_track" : False})                       # Init die Variable in der Config File
-    # ................
-    # Check for last Status of Statistics waned
-    x = config_dic.get("statistics")
-    if not x: config_dic.update({"statistics" : False})                                   # Init die Variable in der Config File
-    # ................
-    # Check for last Status of Smoothening Elevation data
-    x = config_dic.get("smooth")
-    if not x: config_dic.update({"smooth" : 0})                                   # Init die Variable in der Config File
-    smoothen = config_dic.get("smooth")
-
-    # ................
-    # Check for last Start Date set
-    x = config_dic.get("start_date")
-    start_date = (datetime.now().strftime("%Y-%m-%d"))
-    if not x: config_dic.update({"start_date" : start_date})                                   # Init die Variable in der Config File
-    start_date = config_dic.get("start_date")
-
-    # ................  	
-    # Check for last End date set
-    x = config_dic.get("end_date")
-    end_date = (datetime.now().strftime("%Y-%m-%d"))
-    if not x: config_dic.update({"end_date" : end_date})                                   # Init die Variable in der Config File
-    end_date = config_dic.get("end_date")
-
-    # ................
-    # Check for All Tracker Flag set
-    x = config_dic.get("all_tracker")
-    if not x: config_dic.update({"all_tracker" : False})                                   # Init die Variable in der Config File
-    all_tracker = config_dic.get("all_tracker")
-
-    # ....................................................
-    # Baue das Menü auf
-    # ....................................................
-    # root = Tk()
-    root = ThemedTk(theme='radiance')
-    # root = ThemedTk(theme='clearlooks')
-    # root = ThemedTk(theme='adapta')
-    # root = ThemedTk(theme='aquativo')
-    # root = ThemedTk(theme='arc')
-    # root = ThemedTk(theme='black')
-    # root = ThemedTk(theme='blue')
-    # root = ThemedTk(theme='elegance')
-    # root = ThemedTk(theme='kroc')
-    # root = ThemedTk(theme='plastik')
-    # root = ThemedTk(theme='winxpblue')
-    # root = ThemedTk(theme='smog')
-    # root = ThemedTk(theme='yaru')
-    '''Setting the x and y position from where the menue should pop up'''
-    root.geometry('+{}+{}'.format(winx,winy))  
-    root.title("Traccar2GPX - v2.6 (tested with Traccar v5.4 - v6.4)")
-    mainframe = ttk.Frame(root, borderwidth=5, relief="ridge", padding="5 5 5 5")
-    mainframe.grid(column=0, row=0, sticky=(N, W, E, S))
-    root.columnconfigure(0, weight=1)
-    root.rowconfigure(0, weight=1)
-
-    # ....................................................
-    # Lese von Traccar die Anzahl Devices, deren Namen und ID's
-    # ....................................................
-    if config_dic['email']:
-        # Hole alle devices in ein Tuple
-        my_devices = get_all_devices(traccar_result)
-    else:
-        error_message(5)
-    my_tracker_amount = 0
-    my_tracker_names = []
-    my_tracker_id = []
-    for i in my_devices:
-        my_tracker_names.append(i['name'])
-        my_tracker_id.append(i['id'])
-    my_tracker_amount = len(my_tracker_names)
-    if my_tracker_amount == 0:
-        error_message(5)
-
-    # ....................................................
-    # Setzte das Auswahlmenü für die Datümer
-    # ....................................................
-    start_button = ttk.Button(mainframe, text='Start Day:', command=select_start_date)
-    start_button.grid(column=1,  row=1, sticky="E")
-    start_datum = tk.StringVar()
-    # start_datum.set(datetime.now().strftime("%Y-%m-01"))
-    start_datum.set(start_date)
-    start_entry = ttk.Entry(mainframe, textvariable=start_datum, state="readonly")
-    start_entry.grid(column=2,columnspan=3,  row=1, sticky=W)
-
-    # ttk.Label(mainframe, text="End Day:").grid(column=1, row=2, sticky=E)
-    end_button = ttk.Button(mainframe, text='End Day:', command=select_end_date)
-    end_button.grid(column=1,  row=2, sticky="E")
-    end_datum = tk.StringVar()
-    end_datum.set(end_date)
-    # end_datum.set(datetime.now().strftime("%Y-%m-%d"))
-    end_entry = ttk.Entry(mainframe, textvariable=end_datum, state="readonly")
-    end_entry.grid(column=2,columnspan=3,  row=2, sticky=W)
-
-    start_button = ttk.Button(mainframe, text='Today', command=select_today_date)
-    start_button.grid(column=1,  row=3, sticky="WE")
-    # start_button.focus()
-    
-    start_button = ttk.Button(mainframe, text='Yesterday', command=select_yesterday_date)
-    start_button.grid(column=2,  row=3, sticky="WE")
-    
-    start_button = ttk.Button(mainframe, text='This week', command=select_this_week)
-    start_button.grid(column=1,  row=4, sticky="WE")
-
-    start_button = ttk.Button(mainframe, text='Last week', command=select_last_week)
-    start_button.grid(column=2,  row=4, sticky="WE")
-
-    start_button = ttk.Button(mainframe, text='This month', command=select_this_month)
-    start_button.grid(column=1,  row=5, sticky="WE")
-
-    start_button = ttk.Button(mainframe, text='Last month', command=select_last_month)
-    start_button.grid(column=2,  row=5, sticky="WE")
-
-    start_button = ttk.Button(mainframe, text='This year', command=select_this_year)
-    start_button.grid(column=1,  row=6, sticky="WE")
-
-    # ....................................................
-    # Setzte das Auswahlmenü für die Farben des Tracks
-    # ....................................................
-    TrackColor = (
-        'Magenta',
-        'Cyan',
-        'Green',
-        'Red',
-        'Blue',
-        'Yellow',
-        'LightGray',
-        'DarkMagenta',
-        'DarkCyan',
-        'DarkGreen',
-        'DarkRed',
-        'DarkBlue',
-        'DarkYellow',
-        'DarkGrey',
-        'Black'
-    )
-    ttk.Label(mainframe, text="Color of GPX Track:").grid(
-        column=3, row=2, sticky=E)
-    color_choice = ttk.Combobox(mainframe)
-    color_choice['values'] = TrackColor
-    # Here we look for the individual set color per tracker
-    if not all_tracker:
-        # x = config_dic.get(str(tracker_selected))
-        # tracker_id = my_tracker_id[tracker_selected]
-        x = config_dic.get( my_tracker_names[tracker_selected])
-        if x: 
-            track_color_set = x.get("track_color")
-
-    color_choice.current(track_color_set)                   # track_color Wurde weiter oben in der Initialisierungsektion der Config Presets gesetzt
-    color_choice.grid(column=4,columnspan=3,  row=2, sticky="W")
-    color_choice.state(['readonly'])
-
-    # ....................................................
-    # Setzte das Auswahlmenü für den Tracker
-    # ....................................................
-    ttk.Label(mainframe, text="Tracker:").grid(column=3, row=1, sticky="E")
-    choice_tracker = ttk.Combobox(mainframe)
-    choice_tracker['values'] = my_tracker_names
-    choice_tracker.current(tracker_selected)                    # tracker_selected Wurde weiter oben in der Initialisierungsektion der Config Presets gesetzt
-    choice_tracker.grid(column=4,columnspan=3,  row=1, sticky=W)
-    choice_tracker.state(["readonly"])
-    choice_tracker.bind("<<ComboboxSelected>>", auswahl_geaendert)
-
-    # ....................................................
-    # Setzte das Auswahlmenü für Cleaning Track
-    # ....................................................
-    ttk.Label(mainframe, text="Clean Track:").grid(column=3, row=4, sticky=E)
-    clean_Track = BooleanVar(value=True)                                    # Zwingend die init einer TkInter BooleanVar machen!
-    clean_Track.set(config_dic.get("cleaning_track"))                       # Die BoolenVar wird mit set und get behandelt.
-    check_clean_Track = ttk.Checkbutton(mainframe,  variable=clean_Track)
-    check_clean_Track.grid(column=4, row=4, sticky="W")
-
-    # ....................................................
-    # Setzte das Auswahlmenü für Statistics y/n
-    # ....................................................
-    ttk.Label(mainframe, text="Statistics").grid(column=3, row=5, sticky=E)
-    statistics = BooleanVar(value=True)                                    # Zwingend die init einer TkInter BooleanVar machen!
-    statistics.set(config_dic.get("statistics"))                           # Die BoolenVar wird mit set und get behandelt.
-    check_statistics = ttk.Checkbutton(mainframe,  variable=statistics)
-    check_statistics.grid(column=4, row=5, sticky="W")
-
-    # ....................................................
-    # Setzte das Auswahlmenü für Smoothening der Elevation
-    # ....................................................
-    smoothRange = []
-    for x in range(0, 60): smoothRange.append(x)
-    ttk.Label(mainframe, text="Smooth Elevation data:").grid(column=3, row=6, sticky=E)
-    smoothen_w = ttk.Combobox(mainframe)
-    smoothen_w['values'] = smoothRange
-    smoothen_w.current(smoothen)
-    smoothen_w.grid(column=4, row=6, sticky="W")
-    smoothen_w.state(['readonly'])
-    # smooth_loops.state(['disabled'])
-
-    # ....................................................
-    # Setzte das Auswahlmenü für Alle Tracks!
-    # ....................................................
-    ttk.Label(mainframe, text="All Tracker at once:").grid(column=3, row=3, sticky=E)
-    all_Tracker = BooleanVar(value=True)                                    # Zwingend die init einer TkInter BooleanVar machen!
-    all_Tracker.set(config_dic.get("all_tracker"))                       # Die BoolenVar wird mit set und get behandelt.
-    all_tracker = config_dic.get("all_tracker")
-
-    check_all_Tracker = ttk.Checkbutton(mainframe,  variable=all_Tracker)
-    check_all_Tracker.grid(column=4, row=3, sticky="W")
-    toggle_tracker_selection()                                              # stelle sicher, dass der letzte Status gesetzt wird.
-
-    # ....................................................
-    # Setze die "Arbeitsknöpfe"
-    # ....................................................
-    work_button = ttk.Button(mainframe, text='Get DAILY GPX Track', command=get_daily_traccar)
-    work_button.grid(column=3,  row=7, sticky="EW")
-    # work_button.focus()
-
-    one_track_button = ttk.Button(mainframe, text='Get ONE GPX Track', command=get_one_traccar)
-    one_track_button.grid(column=4,  row=7  , sticky="EW")
-    # work_button.focus()
-
-    quitbutton = ttk.Button(mainframe, text='Exit', command=quit_my_program)
-    quitbutton.grid(column=3, row=8, columnspan=2,  sticky="EW")
-
-    for child in mainframe.winfo_children():
-        child.grid_configure(padx=5, pady=5) 
-
-    check_all_Tracker.configure(command=toggle_tracker_selection)
-
-    root.update()
-    
-    root.protocol("WM_DELETE_WINDOW", quit_my_program)
+# ------------------------------------------------------------------------------------------
+# Main Entry Point
+# ------------------------------------------------------------------------------------------
+if __name__ == "__main__":
+    ''' Hier startet das Program '''
+    root = ThemedTk(theme="radiance")  # oder ein anderes Thema wie "clam", "alt", "default", etc.
+    app = Traccar2GPXApp(root, "traccar2gpx.json")
     root.mainloop()
-

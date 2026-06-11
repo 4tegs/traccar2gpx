@@ -36,7 +36,7 @@ While Traccars export option is pretty good, I have different needs. Let's compa
 |Track can be used for geotagging  | - | x |
 
 ## Compatibility
-This version has been tested with Traccar 5.4 - 6.4
+This version has been tested with Traccar 6.14.2
 ## Configuration file
 
 traccar2gpx is configured by a sidecar configuration file. If you don't edit your config file with the needed credentials, traccar2gpx fails to run with an error exception.  
@@ -89,8 +89,6 @@ Within the configuration file one may add pre-sets for specific trackers. The in
 * statistics: true / false
 * smooth: 0 ..... 59
 
-The options set this way can't be overriden by the menu later!
-
 ### More about the config file
 * The config file **must** be named: **traccar2gpx.json**
 * The file must be in valid json format.
@@ -101,7 +99,7 @@ The options set this way can't be overriden by the menu later!
     
 ## Use of traccar2gpx
 
-![Traccar menue options](./images/traccar2gpx_2_5.jpg "traccar2gpx menue options")
+![Traccar menue options](./images/traccar2gpx_3_0.jpg "traccar2gpx menue options")
 
 
 |Option |Explanation |
@@ -138,3 +136,4 @@ The options set this way can't be overriden by the menu later!
 |2.4 | Fixed problems with codepages. Thanks to pki791.|
 |2.5 | Reestablished smoothening of elevation data. <br/> Implemented pre-selection of more date ranges.<br/> Tested with Traccar version 6.4 |
 |2.6 | Implemented to pre set specific traccer options.|
+|3.0 | Recoded the whole program.|
