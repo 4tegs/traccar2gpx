@@ -1004,15 +1004,15 @@ class Traccar2GPXApp:
         self.config["track_type"] = self.track_type.get()
         
         # nicht sichern, der soll wirklich über die json gesteuert sein
-        # selected_tracker = self.tracker_var.get()
-        # if selected_tracker:
-            # self.config[selected_tracker] = {
-                # "track_color": COLOR_NAME_TO_CODE.get(self.color_var.get(), 11),  
-                # "cleaning_track": self.clean_track.get(),
-                # "smooth": self.smooth_var.get(),
-                # "statistics": self.statistics.get()
-            # }
-        # self.config["tracker_selected"] = selected_tracker
+        selected_tracker = self.tracker_var.get()
+        if selected_tracker:
+            self.config[selected_tracker] = {
+                "track_color": COLOR_NAME_TO_CODE.get(self.color_var.get(), 11),  
+                "cleaning_track": self.clean_track.get(),
+                "smooth": self.smooth_var.get(),
+                "statistics": self.statistics.get()
+            }
+        self.config["tracker_selected"] = selected_tracker
         
         Utility.save_config(self.config_file, self.config)
         self.root.destroy()
